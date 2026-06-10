@@ -1,81 +1,89 @@
 # Aperçu PJ — Extension Thunderbird
 
-Affiche automatiquement l'aperçu des PDF en pièce jointe directement dans la zone du message, sans clic.
+Affiche les PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 
 - **Cible :** Thunderbird ≥ 128 (testé sur 151)
 - **Manifest :** V3
-- **Rendu PDF :** PDF.js v6.0.227 (legacy), embarqué — **aucun appel réseau**
+- **Rendu PDF :** PDF.js v6.0.227 (legacy ESM), embarqué — **aucun appel réseau**
 - **Confidentialité :** aucune donnée ne sort de la machine
+
+> ℹ️ La v0.1 visait un aperçu **inline** sous le corps du message. TB 151 MV3 a retiré toutes les APIs qui le permettaient (cf. `CLAUDE.md`). La v0.2 utilise une fenêtre popup déplaçable comme alternative pragmatique.
 
 ---
 
 ## Installation
 
-### Installation en mode debug (rechargement à chaud, pour développement)
+### Mode debug (rechargement à chaud)
 
-1. Thunderbird → menu **☰** → **Outils du développeur** → **Débogage des modules complémentaires**
-2. Cocher *Activer le mode débogage des extensions*
-3. Cliquer **Charger un module temporaire…**
-4. Sélectionner le fichier `manifest.json` à la racine de ce dossier
+1. Menu **☰** → **Modules complémentaires et thèmes** (Ctrl+Maj+A)
+2. Roue dentée ⚙ → **Déboguer les modules complémentaires**
+3. Sur `about:debugging` → **Charger un module complémentaire temporaire…**
+4. Sélectionner `D:\NICO\CLAUDE\Thunderbird\manifest.json`
 5. L'extension est active jusqu'à fermeture de Thunderbird
 
 ### Installation permanente (.xpi)
 
-1. Zipper le contenu de ce dossier (le ZIP doit contenir `manifest.json` à sa racine, **pas un dossier parent**) :
-   ```powershell
-   Compress-Archive -Path D:\NICO\CLAUDE\Thunderbird\* -DestinationPath apercu-pj.zip -Force
-   Rename-Item apercu-pj.zip apercu-pj.xpi
-   ```
-2. Thunderbird → **Outils** → **Modules complémentaires et thèmes** → roue dentée ⚙ → **Installer un module depuis un fichier…**
-3. Sélectionner `apercu-pj.xpi`
-4. Confirmer l'installation
+```powershell
+Compress-Archive -Path D:\NICO\CLAUDE\Thunderbird\* -DestinationPath apercu-pj.zip -Force
+Rename-Item apercu-pj.zip apercu-pj.xpi
+```
+Puis Outils → Modules complémentaires → ⚙ → Installer un module depuis un fichier.
 
-> Pour une extension non-signée, Thunderbird Release peut refuser l'installation .xpi. Dans ce cas, utiliser le mode debug ou activer la préférence `xpinstall.signatures.required = false` dans `about:config`.
+> Si TB refuse l'install non signée : `about:config` → `xpinstall.signatures.required = false`.
 
-### Installation sur les deux machines (PC fixe + Surface Pro)
+### Sur les deux machines
 
-Le repo Git de ce dossier est synchronisé entre les deux machines : sur chacune, suivre simplement la procédure d'installation en mode debug. Les préférences (`storage.local`) sont propres à chaque machine.
+Le repo Git est synchronisé entre PC fixe et Surface Pro. Sur chaque machine, suivre l'install ci-dessus. Les préférences (`storage.local`) sont propres à chaque poste.
 
 ---
 
 ## Utilisation
 
-- Sélectionner un mail contenant un ou plusieurs PDF → l'aperçu s'affiche automatiquement sous le corps du message.
-- **Plusieurs PDFs** : barre latérale gauche, cliquer pour basculer.
-- **Navigation** : flèches ◀ ▶ ou saisir un numéro de page.
-- **Zoom** : boutons − / + ou liste déroulante (ajuster largeur par défaut).
-- **Replier le panneau** : bouton ▼ dans l'en-tête (état mémorisé entre sessions).
-- **Préférences** : Modules complémentaires → Aperçu PJ → ⚙ → Préférences
+1. **Sélectionner un mail** contenant un ou plusieurs PDF
+2. Dans la barre d'outils du message, un bouton 🟥 apparaît avec un **badge rouge** indiquant le nombre de PDFs (ex : « 3 »)
+3. **Cliquer le bouton** → ouverture d'une fenêtre déplaçable contenant l'aperçu
+4. La fenêtre se souvient de sa **position et taille** entre les ouvertures
+
+### Dans la fenêtre
+
+- **Liste verticale** à gauche (si plusieurs PDFs) — cliquer pour basculer
+- **Navigation** : flèches ◀ ▶ ou saisir un numéro de page
+- **Zoom** : boutons − / + ou liste déroulante (« Ajuster largeur » par défaut)
+- **🖨 Imprimer** : bouton dans la toolbar (ou Ctrl+P, ou **clic droit → Imprimer la page**)
+- **Fermer** : croix de la fenêtre
 
 ---
 
 ## Configuration
 
+Préférences → Modules complémentaires → Aperçu PJ → ⚙
+
 | Réglage | Défaut | Effet |
-|--------|--------|-------|
-| Taille max chargement auto | 15 Mo | Au-delà, bouton « Charger l'aperçu » manuel |
-| Panneau replié par défaut | Non | Mémorisé localement après usage |
+|---|---|---|
+| Géométrie par défaut | 900 × 950 px | Taille initiale ; ensuite la fenêtre se souvient de sa dernière position/taille |
 
 ---
 
 ## Procédure de test
 
-À dérouler sur **chaque machine** après installation :
+Sur chaque machine après installation :
 
 | # | Cas | Résultat attendu |
-|---|-----|------------------|
-| 1 | Mail texte sans aucune pièce jointe | Aucun panneau d'aperçu n'apparaît |
-| 2 | Mail avec un seul PDF léger (< 1 Mo) | Panneau s'ouvre, page 1 rendue automatiquement, sidebar masquée |
-| 3 | Mail avec 3 PDFs | Sidebar verticale visible, premier PDF actif, clic sur les autres bascule l'aperçu |
-| 4 | PDF de 50 pages | Navigation page par page fonctionnelle, valeur du champ page modifiable |
-| 5 | Zoom +/− et « Ajuster largeur » | Re-rendu propre, pas de débordement |
-| 6 | Mail avec PDF de 25 Mo | Bouton « Charger l'aperçu » apparaît, le clic charge le PDF |
-| 7 | Modifier la taille max à 1 Mo dans les options | Cas 2 déclenche désormais le garde-fou |
-| 8 | Mail avec PJ mixtes (PDF + image + .htm signature) | Seuls les PDFs sont listés/affichés |
-| 9 | Replier le panneau, sélectionner un autre mail, revenir | L'état replié est restauré |
-| 10 | Mail avec PDF corrompu (modifié à la main) | Message d'erreur lisible, pas de crash |
-| 11 | Thunderbird en thème sombre | Couleurs du panneau et du viewer cohérentes |
-| 12 | Mode hors-ligne complet | Le rendu fonctionne (preuve d'absence d'appel réseau) |
+|---|---|---|
+| 1 | Mail sans pièce jointe | Bouton sans badge ; clic ouvre fenêtre vide « Aucun PDF dans ce message » |
+| 2 | Mail avec 1 PDF léger | Badge « 1 », clic ouvre la fenêtre, PDF rendu page 1 |
+| 3 | Mail avec 3 PDFs | Badge « 3 », fenêtre s'ouvre avec liste verticale, premier PDF actif |
+| 4 | PDF de 50 pages | Navigation page par page fonctionnelle, saisie de numéro de page directe |
+| 5 | Zoom +/−, Ajuster largeur | Re-rendu propre |
+| 6 | Déplacer la fenêtre, la redimensionner, la fermer | À la prochaine ouverture, position et taille restaurées |
+| 7 | Mail avec PJ mixtes (PDF + image + .htm) | Badge ne compte que les PDFs |
+| 8 | PDF corrompu | Message d'erreur lisible, pas de crash |
+| 9 | Clic droit dans la fenêtre → Imprimer la page | Dialogue d'impression Windows |
+| 10 | Bouton 🖨 dans la toolbar | Dialogue d'impression Windows |
+| 11 | Ctrl+P | Dialogue d'impression Windows |
+| 12 | Thème sombre Thunderbird | Couleurs cohérentes |
+| 13 | Hors-ligne complet | Rendu fonctionne (zéro réseau) |
+| 14 | Changer de mail sans fermer la fenêtre | La fenêtre reste sur le mail initial (intentionnel) ; le badge se met à jour pour le nouveau mail |
 
 ---
 
@@ -84,36 +92,33 @@ Le repo Git de ce dossier est synchronisé entre les deux machines : sur chacune
 ```
 .
 ├── manifest.json
-├── background/background.js        ← détection PDF, fourniture des Blob
-├── content/
-│   ├── inject.js                   ← messageDisplayScript : injecte l'iframe
-│   └── inject.css
+├── background/background.js         ← détection PDFs, badge, ouverture popup, fourniture Blob
 ├── viewer/
-│   ├── viewer.html / .js / .css    ← UI + intégration PDF.js
+│   ├── viewer.html / .js / .css     ← UI + intégration PDF.js
 │   └── toolbar/
-│       ├── registry.js             ← registre d'actions extensible
-│       └── actions/print.js        ← stub Phase 1bis
-├── vendor/pdfjs/                   ← PDF.js v6.0.227 legacy, bundle local
-├── options/                        ← page Préférences
+│       ├── registry.js              ← registre d'actions extensible
+│       └── actions/print.js         ← bouton Imprimer (Phase 1bis : SumatraPDF)
+├── vendor/pdfjs/                    ← PDF.js v6.0.227 legacy, bundle local
+├── options/                         ← page Préférences
 ├── _locales/fr/messages.json
 ├── icons/icon.svg
-├── README.md (ce fichier)
-├── CLAUDE.md                       ← décisions d'architecture
-└── .claude/session-log.md          ← journal de session
+├── README.md
+├── CLAUDE.md
+└── .claude/session-log.md
 ```
 
 ---
 
 ## Roadmap
 
-- **Phase 1** (cette version) : aperçu PDF inline, multi-PDF, options, registre toolbar
-- **Phase 1bis** : bouton 🖨 Imprimer via native messaging → SumatraPDF silencieux
-- **Phase 2** : actions Archiver chantier (Supabase, ref `CH-AAAA-NNN`) + Envoyer CCM (Factur-X)
+- **Phase 1 (cette version, v0.2)** : popup, badge, multi-PDF, options, registre toolbar avec Imprimer actif
+- **Phase 1bis** : impression silencieuse via native messaging → `SumatraPDF.exe -print-to-default -silent`
+- **Phase 2** : Archiver chantier (Supabase, ref `CH-AAAA-NNN`) + Envoyer CCM (Factur-X)
 
 ---
 
 ## Dépannage
 
-- **Le panneau ne s'affiche pas** : ouvrir la console du débogueur de l'extension (Modules complémentaires → ⚙ → Déboguer) et vérifier les erreurs.
-- **« Impossible d'afficher »** : généralement un PDF chiffré ou corrompu. Tenter d'ouvrir le PDF normalement pour confirmer.
-- **Garde-fou de taille trop strict** : augmenter la limite dans les Préférences.
+- **Pas de bouton dans la barre du message** : vérifier l'extension est bien chargée dans `about:debugging`, et que le mail est sélectionné dans la liste (pas en multi-sélection).
+- **Badge présent mais clic sans effet** : ouvrir l'Examiner depuis `about:debugging` → onglet Console → chercher les erreurs préfixées par `[Aperçu PJ]`.
+- **Fenêtre s'ouvre minuscule ou hors écran** : Préférences → Réinitialiser.

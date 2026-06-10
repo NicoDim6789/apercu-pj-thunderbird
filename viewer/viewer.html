@@ -7,10 +7,8 @@
 </head>
 <body>
   <div id="root">
-    <!-- Colonne gauche : liste verticale des PDFs du mail -->
     <aside id="pdf-list" aria-label="Liste des PDF du message"></aside>
 
-    <!-- Colonne droite : toolbar + zone de rendu -->
     <main id="main">
       <div id="toolbar" role="toolbar" aria-label="Actions sur le PDF">
         <div id="toolbar-nav">
@@ -35,16 +33,12 @@
           <button type="button" id="btn-zoom-in" title="Zoom +">+</button>
         </div>
         <div id="toolbar-actions">
-          <!-- Boutons issus du registre d'actions (print, archive, ccm, …) -->
+          <!-- Boutons via le registre d'actions (print, archive, ccm, …) -->
         </div>
       </div>
 
       <div id="render-area">
-        <div id="empty-state">Aucun PDF à afficher.</div>
-        <div id="size-guard" hidden>
-          <p id="size-guard-msg"></p>
-          <button type="button" id="size-guard-load">Charger l'aperçu</button>
-        </div>
+        <div id="empty-state">Aucun PDF dans ce message.</div>
         <canvas id="pdf-canvas" hidden></canvas>
         <div id="loading" hidden>Chargement…</div>
         <div id="error" hidden></div>

@@ -1,61 +1,80 @@
 # Aperçu PJ — extension Thunderbird
 
-Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe directement dans la zone du message, sans clic.
+Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 
 ## Cible
 
-- **Thunderbird 151+** (détecté localement : 151.0.1)
+- **Thunderbird 151+** (testé sur 151.0.1)
 - Manifest **V3**
 - Plateforme : Windows 11, deux postes synchronisés via Git
 
-## Décisions d'architecture (figées le 2026-06-10)
+## Pivot architectural — v0.2.0 (2026-06-10)
 
-| # | Décision | Justification |
-|---|----------|---------------|
-| 1 | Manifest V3 | TB pousse activement vers MV3 ; MV2 est en sursis. APIs utilisées (`messageDisplay`, `messages.*`, `messageDisplayScripts`) stables en MV3. |
-| 2 | Panneau **sous le corps** du message | `messageDisplayScripts` injecte dans le HTML rendu — splitter latéralement nécessiterait un panneau séparé qui casse le flux de lecture. |
-| 3 | PDF.js **legacy build (UMD)** bundlé localement | Compat large, indépendance réseau totale (CSP / vie privée), pas de CDN. |
-| 4 | Liste **verticale** pour plusieurs PDFs dans un mail | Préférence utilisateur — sidebar fine à gauche du panneau. |
-| 5 | Préférences **locales par machine** (`storage.local`) | `storage.sync` n'est pas réellement implémenté dans TB. Sync inter-postes hors scope phase 1. |
-| 6 | Racine repo Git = **`D:\NICO\CLAUDE\Thunderbird\`** | Pas de sous-dossier. |
-| 7 | Garde-fou taille : **15 Mo par défaut, configurable** | Au-delà, bouton « Charger l'aperçu » manuel. Évite le freeze sur les comptes rendus de chantier volumineux. |
-| 8 | Toolbar = **registre d'actions extensible** | Préparation Phase 2 (Imprimer, Archiver chantier, Envoyer CCM) sans refonte. |
+**Constat technique TB 151 MV3 :** aucune API n'expose plus l'injection d'un script dans le DOM du message affiché.
 
-## Contrat du registre d'actions toolbar
+| API testée | Résultat |
+|---|---|
+| `message_display_scripts` manifest field | Reconnu, script jamais injecté |
+| `messageDisplayScripts.register()` | Namespace inexistant |
+| `scripting.messageDisplay.registerScripts()` | Inexistant |
+| `scripting.executeScript()` | Inexistant |
+| `tabs.executeScript()` | Inexistant |
 
-Chaque action est enregistrée via :
+→ Les APIs MV2 ont été retirées en MV3, sans remplacement standard. La piste inline est morte (l'unique alternative serait une Experiment API, exclue par contrainte projet).
+
+**Solution adoptée : fenêtre popup déplaçable.**
+- Bouton `messageDisplayAction` dans la barre du message + **badge** affichant le nombre de PDFs
+- Clic → `windows.create({type:"popup"})` ouvre une **vraie fenêtre Windows** : déplaçable, redimensionnable, agrandissable
+- Clic droit dans la fenêtre → menu contextuel natif TB avec « Imprimer la page »
+- Bouton 🖨 Imprimer aussi dans la toolbar (`window.print()`) + raccourci Ctrl+P
+- Géométrie de la fenêtre (position + taille) persistée dans `storage.local` et restaurée à l'ouverture suivante
+
+## Décisions d'architecture (figées et révisées)
+
+| # | Décision initiale | État après v0.2 |
+|---|---|---|
+| 1 | Manifest V3 | Maintenu |
+| 2 | Panneau sous le corps du message | ❌ Abandonné — API d'injection retirée. Fenêtre popup à la place. |
+| 3 | PDF.js legacy ESM bundlé localement | Maintenu (v6.0.227) |
+| 4 | Liste verticale multi-PDFs | Maintenu — dans la fenêtre popup |
+| 5 | Préférences locales par machine | Maintenu |
+| 6 | Racine `D:\NICO\CLAUDE\Thunderbird\` | Maintenu |
+| 7 | Garde-fou taille 15 Mo configurable | Supprimé — l'utilisateur ouvre la fenêtre explicitement, plus de garde-fou auto |
+| 8 | Toolbar = registre d'actions extensible | Maintenu — `print` activé en Phase 1, `archive-chantier` et `send-ccm` viendront en Phase 2 |
+
+## Contrat du registre d'actions toolbar (inchangé)
 
 ```js
 toolbar.register({
-  id: 'print',           // identifiant unique
-  label: 'Imprimer',     // libellé i18n
-  icon: 'icons/...',     // chemin relatif à la racine extension
-  order: 10,             // ordre d'affichage croissant
-  isAvailable: ({ pdf, message }) => boolean,
-  handler: async ({ pdfBlob, pdfName, message }) => void
+  id, label, icon, order,
+  isAvailable: ({pdf, message}) => boolean,
+  handler: async ({pdf, pdfDoc, pdfCanvas, pdfName, message}) => void
 });
 ```
 
-Phase 1 ne livre que le **stub `print`** (désactivé). Phase 1bis branchera le native messaging vers SumatraPDF. Phase 2 ajoutera `archive-chantier` et `send-ccm`.
-
-## Flux de données
+## Flux de données (v0.2)
 
 ```
 TB affiche un mail
    │
    ▼
-background.js          ── onMessageDisplayed(tab, msg)
-   │                   ── messages.listAttachments(msg.id)
-   │                   ── filtre contentType === 'application/pdf'
-   │                   ── runtime.sendMessage(tabId, {type:'pdfsFound', list})
+background.js  ── onMessagesDisplayed(tab, displayedMessages)
+   │           ── listAttachments → collectPdfAttachments
+   │           ── messageDisplayAction.setBadgeText(n)
    ▼
-content/inject.js      ── (messageDisplayScript, CSP restrictive)
-   │                   ── insère <iframe src="moz-extension://…/viewer/viewer.html">
+Utilisateur clique le bouton de la barre du message
+   │
    ▼
-viewer/viewer.html     ── page extension, CSP normale, PDF.js OK
-   │                   ── runtime.sendMessage({type:'getPdf', msgId, partName})
-   │                   ◄─ background répond ArrayBuffer (transférable)
-   │                   ── PDF.js getDocument → render page courante uniquement
+background.js  ── onClicked → windows.create({
+   │              url: "viewer/viewer.html?messageId=N",
+   │              type: "popup", width, height, left, top })
+   ▼
+viewer.html (fenêtre popup, déplaçable)
+   │  → runtime.sendMessage({type:'getPdfList', messageId}) → liste des PDFs
+   │  → runtime.sendMessage({type:'getPdf', messageId, partName}) → ArrayBuffer
+   │  → PDF.js render canvas
+   │  → toolbar via registry.js
+   │  → beforeunload → runtime.sendMessage({type:'saveGeometry', geom})
 ```
 
 ## Structure du repo
@@ -64,27 +83,27 @@ viewer/viewer.html     ── page extension, CSP normale, PDF.js OK
 .
 ├── manifest.json
 ├── background/background.js
-├── content/inject.js, inject.css
-├── viewer/viewer.html, viewer.js, viewer.css
-├── viewer/toolbar/registry.js, actions/print.js
-├── vendor/pdfjs/              ← bundle legacy local
-├── options/options.html, options.js
+├── viewer/
+│   ├── viewer.html, viewer.js, viewer.css
+│   └── toolbar/
+│       ├── registry.js
+│       └── actions/print.js
+├── vendor/pdfjs/              ← bundle legacy PDF.js v6.0.227 local
+├── options/options.html, options.css, options.js
 ├── _locales/fr/messages.json
-├── icons/
+├── icons/icon.svg
 ├── README.md
-├── CLAUDE.md (ce fichier)
+├── CLAUDE.md
 └── .claude/session-log.md
 ```
 
-## Points d'incertitude connus
+## Phase 1bis — préparée
 
-- **CSP messageDisplayScripts** : PDF.js ne peut pas tourner directement dans la zone message (eval / worker bloqués). Contournement = iframe vers page extension `moz-extension://`. Validé techniquement, à vérifier au premier essai.
-- **Sérialisation Blob cross-context MV3** : on transfère `ArrayBuffer` plutôt que `Blob` pour fiabilité.
-- **`message_display_scripts` en MV3** : la doc TB est explicite ; pas de `matches` requis (s'applique à tout message affiché).
-- **Background MV3 TB** : utilise `background.scripts` (pas service_worker — TB ne suit pas Chrome sur ce point).
+Bouton 🖨 Imprimer actuellement = `window.print()`. Pour impression silencieuse (sans dialogue) d'un PDF entier, prévoir native messaging vers `SumatraPDF.exe -print-to-default -silent`. Le stub `print.js` peut être étendu sans toucher au viewer.
 
 ## Phase 2 — préparée, pas développée
 
-- Archivage Supabase avec référence chantier `CH-AAAA-NNN`
-- Transmission CCM (préparation Factur-X)
-- Le registre d'actions doit pouvoir accueillir ces deux modules sans toucher au viewer.
+- Action « Archiver dans le chantier » : push Supabase avec référence `CH-AAAA-NNN`
+- Action « Envoyer au CCM » : transmission Factur-X
+
+Les deux s'enregistrent dans le registre toolbar sans modifier `viewer.js`.

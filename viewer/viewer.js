@@ -1,18 +1,14 @@
-// viewer.js — UI + PDF.js
+// viewer.js — fenêtre popup d'aperçu PDF
 //
-// Responsabilités :
-//   - écouter les messages postMessage venant de content/inject.js
-//   - charger PDF.js (ESM legacy) et configurer le worker
-//   - gérer la liste verticale des PDFs du mail
-//   - rendre la page courante du PDF actif, gérer pagination et zoom
-//   - appliquer le garde-fou de taille (bouton « Charger l'aperçu »)
-//   - exposer la toolbar via le registre d'actions extensible
+// Charge la liste des PDFs du message via runtime, rend le PDF sélectionné
+// avec PDF.js, expose une toolbar extensible (registre d'actions).
+// Sauvegarde la géométrie de la fenêtre dans storage.local (via background)
+// pour la restaurer à l'ouverture suivante.
 
 import * as pdfjsLib from "../vendor/pdfjs/build/pdf.mjs";
 import { toolbar } from "./toolbar/registry.js";
 import "./toolbar/actions/print.js";
 
-// Worker PDF.js : chemin absolu via moz-extension://
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
 
@@ -21,20 +17,20 @@ const STANDARD_FONT_URL = new URL("../vendor/pdfjs/web/standard_fonts/", import.
 const WASM_URL = new URL("../vendor/pdfjs/web/wasm/", import.meta.url).href;
 const ICC_URL = new URL("../vendor/pdfjs/web/iccs/", import.meta.url).href;
 
-// ---------- État ----------
+const params = new URLSearchParams(location.search);
+const messageId = Number(params.get("messageId"));
+
 const state = {
-  messageId: null,
-  pdfs: [],            // [{partName, name, size}, ...]
+  messageId,
+  pdfs: [],
   activeIndex: -1,
-  settings: null,      // {maxAutoSizeBytes, panelCollapsed}
-  doc: null,           // PDFDocumentProxy en cours
+  doc: null,
   pageNum: 1,
   numPages: 0,
-  zoom: "fit-width",   // "fit-width" | nombre
+  zoom: "fit-width",
   renderTask: null,
 };
 
-// ---------- DOM ----------
 const el = {
   root: document.getElementById("root"),
   list: document.getElementById("pdf-list"),
@@ -42,9 +38,6 @@ const el = {
   canvas: document.getElementById("pdf-canvas"),
   loading: document.getElementById("loading"),
   error: document.getElementById("error"),
-  guard: document.getElementById("size-guard"),
-  guardMsg: document.getElementById("size-guard-msg"),
-  guardLoad: document.getElementById("size-guard-load"),
   renderArea: document.getElementById("render-area"),
   pageInput: document.getElementById("page-input"),
   pageTotal: document.getElementById("page-total"),
@@ -56,11 +49,10 @@ const el = {
   actions: document.getElementById("toolbar-actions"),
 };
 
-// ---------- Helpers UI ----------
-function show(node) { node.hidden = false; }
-function hide(node) { node.hidden = true; }
+function show(n) { n.hidden = false; }
+function hide(n) { n.hidden = true; }
 function setError(msg) {
-  hide(el.canvas); hide(el.loading); hide(el.guard); hide(el.empty);
+  hide(el.canvas); hide(el.loading); hide(el.empty);
   el.error.textContent = msg;
   show(el.error);
 }
@@ -72,7 +64,6 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-// ---------- Liste verticale ----------
 function renderList() {
   el.list.innerHTML = "";
   el.root.classList.toggle("single-pdf", state.pdfs.length <= 1);
@@ -94,27 +85,14 @@ function renderList() {
   });
 }
 
-// ---------- Sélection d'un PDF ----------
 async function selectPdf(index) {
   if (index < 0 || index >= state.pdfs.length) return;
   state.activeIndex = index;
   renderList();
   clearError();
-  hide(el.canvas); hide(el.empty); hide(el.guard);
+  hide(el.canvas); hide(el.empty);
 
-  const pdf = state.pdfs[index];
-  const maxAuto = state.settings?.maxAutoSizeBytes ?? (15 * 1024 * 1024);
-
-  if (pdf.size > maxAuto) {
-    el.guardMsg.textContent =
-      `« ${pdf.name} » fait ${formatSize(pdf.size)}, au-delà du seuil de chargement automatique (${formatSize(maxAuto)}).`;
-    show(el.guard);
-    el.guardLoad.onclick = () => { hide(el.guard); loadAndRender(pdf); };
-    refreshToolbar(null);
-    return;
-  }
-
-  await loadAndRender(pdf);
+  await loadAndRender(state.pdfs[index]);
 }
 
 async function loadAndRender(pdf) {
@@ -137,12 +115,14 @@ async function loadAndRender(pdf) {
     el.pageInput.value = "1";
     el.pageInput.max = state.numPages;
     el.pageTotal.textContent = `/ ${state.numPages}`;
+    document.title = `Aperçu PJ — ${pdf.name}`;
     hide(el.loading);
     show(el.canvas);
     await renderPage();
     refreshToolbar(pdf);
   } catch (err) {
     console.error("[Aperçu PJ] loadAndRender:", err);
+    hide(el.loading);
     setError(`Impossible d'afficher « ${pdf.name} » : ${err.message || err}`);
     refreshToolbar(null);
   }
@@ -154,11 +134,10 @@ async function fetchPdfBuffer(pdf) {
     messageId: state.messageId,
     partName: pdf.partName,
   });
-  if (!res?.ok) throw new Error("Lecture pièce jointe échouée");
+  if (!res?.ok) throw new Error(res?.error || "Lecture pièce jointe échouée");
   return res.buffer;
 }
 
-// ---------- Rendu d'une page ----------
 async function renderPage() {
   if (!state.doc) return;
   if (state.renderTask) {
@@ -170,7 +149,7 @@ async function renderPage() {
 
   let scale;
   if (state.zoom === "fit-width") {
-    const availableWidth = el.renderArea.clientWidth - 24; // padding
+    const availableWidth = el.renderArea.clientWidth - 24;
     scale = Math.max(0.1, availableWidth / baseViewport.width);
   } else {
     scale = parseFloat(state.zoom) || 1;
@@ -186,10 +165,7 @@ async function renderPage() {
   const ctx = el.canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  state.renderTask = page.render({
-    canvasContext: ctx,
-    viewport,
-  });
+  state.renderTask = page.render({ canvasContext: ctx, viewport });
   try {
     await state.renderTask.promise;
   } catch (err) {
@@ -202,18 +178,19 @@ async function renderPage() {
   el.btnNext.disabled = state.pageNum >= state.numPages;
 }
 
-// ---------- Toolbar ----------
 function refreshToolbar(pdf) {
   const ctx = {
     pdf,
     message: { id: state.messageId },
-    pdfBlob: null, // disponible lazy : on évite de recharger inutilement
     pdfName: pdf?.name,
+    // Permet aux actions (impression, etc.) d'accéder au document chargé.
+    pdfDoc: state.doc,
+    pdfCanvas: el.canvas,
   };
   toolbar.render(el.actions, ctx);
 }
 
-// ---------- Événements UI ----------
+// --------- Événements UI ---------
 el.btnPrev.addEventListener("click", () => {
   if (state.pageNum > 1) { state.pageNum--; el.pageInput.value = state.pageNum; renderPage(); }
 });
@@ -246,31 +223,51 @@ window.addEventListener("resize", () => {
   if (state.zoom === "fit-width" && state.doc) renderPage();
 });
 
-// ---------- Réception depuis content/inject.js ----------
-window.addEventListener("message", async (event) => {
-  const msg = event.data;
-  if (msg?.type !== "showPdfs") return;
+// Sauvegarde de la géométrie avant fermeture (pour restauration à la
+// prochaine ouverture). Déclenché aussi quand l'utilisateur ferme via la
+// croix : l'event beforeunload est l'occasion fiable.
+function saveGeometry() {
+  const geom = {
+    left: window.screenX,
+    top: window.screenY,
+    width: window.outerWidth,
+    height: window.outerHeight,
+  };
+  // sendMessage est "fire and forget" ici, on n'attend pas.
+  try { browser.runtime.sendMessage({ type: "saveGeometry", geom }); } catch (_) {}
+}
+window.addEventListener("beforeunload", saveGeometry);
 
-  state.messageId = msg.messageId;
-  state.pdfs = msg.pdfs || [];
-  state.settings = msg.settings || null;
-
-  if (state.pdfs.length === 0) {
-    state.doc = null;
-    state.activeIndex = -1;
-    hide(el.canvas); hide(el.guard); hide(el.loading); clearError();
-    show(el.empty);
-    el.list.innerHTML = "";
-    el.pageTotal.textContent = "/ 0";
-    refreshToolbar(null);
+// --------- Initialisation ---------
+async function init() {
+  if (!Number.isFinite(state.messageId)) {
+    setError("messageId manquant dans l'URL.");
     return;
   }
+  try {
+    const res = await browser.runtime.sendMessage({
+      type: "getPdfList",
+      messageId: state.messageId,
+    });
+    if (!res?.ok) throw new Error(res?.error || "getPdfList a échoué");
+    state.pdfs = res.pdfs || [];
 
-  hide(el.empty);
-  renderList();
-  await selectPdf(0);
-});
+    if (state.pdfs.length === 0) {
+      hide(el.canvas); hide(el.loading); clearError();
+      show(el.empty);
+      el.list.innerHTML = "";
+      el.pageTotal.textContent = "/ 0";
+      refreshToolbar(null);
+      return;
+    }
 
-// Signal au parent que le viewer est prêt (le content script peut alors
-// pousser l'état courant sans attendre le prochain onMessageDisplayed).
-window.parent?.postMessage({ type: "viewerReady" }, "*");
+    hide(el.empty);
+    renderList();
+    await selectPdf(0);
+  } catch (err) {
+    console.error("[Aperçu PJ] init:", err);
+    setError(`Erreur d'initialisation : ${err.message || err}`);
+  }
+}
+
+init();

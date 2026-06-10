@@ -1,15 +1,10 @@
-// options.js — lecture / écriture des préférences dans storage.local
-//
-// Toutes les valeurs sont locales à la machine (cf. décision d'architecture).
+// options.js — préférences locales (par machine).
 
 const DEFAULTS = {
-  maxAutoSizeBytes: 15 * 1024 * 1024,
-  panelCollapsed: false,
+  windowGeom: { width: 900, height: 950 },
 };
 
 const $ = (id) => document.getElementById(id);
-const inputMaxMB = $("maxAutoSizeMB");
-const inputCollapsed = $("panelCollapsed");
 const status = $("status");
 
 function setStatus(text) {
@@ -19,16 +14,18 @@ function setStatus(text) {
 
 async function load() {
   const stored = await messenger.storage.local.get(DEFAULTS);
-  inputMaxMB.value = Math.round(stored.maxAutoSizeBytes / (1024 * 1024));
-  inputCollapsed.checked = !!stored.panelCollapsed;
+  const g = stored.windowGeom || DEFAULTS.windowGeom;
+  $("width").value = g.width;
+  $("height").value = g.height;
 }
 
 async function save(e) {
   e.preventDefault();
-  const mb = Math.max(1, parseInt(inputMaxMB.value, 10) || 15);
+  const width = Math.max(400, parseInt($("width").value, 10) || 900);
+  const height = Math.max(400, parseInt($("height").value, 10) || 950);
+  const existing = await messenger.storage.local.get({ windowGeom: {} });
   await messenger.storage.local.set({
-    maxAutoSizeBytes: mb * 1024 * 1024,
-    panelCollapsed: inputCollapsed.checked,
+    windowGeom: { ...existing.windowGeom, width, height },
   });
   setStatus("Préférences enregistrées.");
 }

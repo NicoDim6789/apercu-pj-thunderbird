@@ -1,11 +1,11 @@
-// actions/print.js — stub d'impression
+// actions/print.js — bouton Imprimer
 //
-// Phase 1 : action enregistrée mais désactivée tant que l'hôte natif
-// (Phase 1bis) n'est pas installé.
+// Phase 1 : window.print() ouvre le dialogue d'impression natif Windows avec
+// la fenêtre courante (donc le PDF rendu dans le canvas). Suffisant pour
+// 1 à quelques pages. Pour imprimer un PDF de 20+ pages en silencieux, voir
+// Phase 1bis (native messaging vers SumatraPDF).
 //
-// Phase 1bis branchera ici un browser.runtime.sendNativeMessage()
-// vers un hôte natif qui exécutera :
-//   SumatraPDF.exe -print-to-default -silent <fichier.pdf>
+// Note : le clic droit dans la fenêtre offre déjà « Imprimer la page » nativement.
 
 import { toolbar } from "../registry.js";
 
@@ -13,11 +13,8 @@ toolbar.register({
   id: "print",
   label: "🖨 Imprimer",
   order: 10,
-  isAvailable: () => false, // désactivé en Phase 1
-  handler: async (_ctx) => {
-    // À implémenter en Phase 1bis :
-    //   const port = browser.runtime.connectNative("apercu_pj_print");
-    //   port.postMessage({ pdfBytes: [...new Uint8Array(buffer)] });
-    throw new Error("Impression non encore implémentée (Phase 1bis).");
+  isAvailable: ({ pdf }) => !!pdf,
+  handler: async () => {
+    window.print();
   },
 });
