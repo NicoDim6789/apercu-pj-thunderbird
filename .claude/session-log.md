@@ -53,3 +53,14 @@ Décidé en concertation avec l'utilisateur :
 - L'enumération `for...in messenger.scripting` renvoie 0 clé même si l'objet existe : passer par `Object.getOwnPropertyNames` si besoin de diag profond.
 - `messageDisplayAction.setBadgeBackgroundColor` accepte `null` pour reset au défaut.
 - `windows.create({type:"popup"})` donne une vraie fenêtre Windows déplaçable.
+
+### 2026-06-10 — Validation utilisateur ✅
+
+v0.2.0 validée en test direct sur Thunderbird 151.0.1 :
+- Bouton + badge visible dans la barre du message
+- Fenêtre popup s'ouvre au clic
+- PDF rendu correctement
+- Déplacement / redimensionnement / clic droit Imprimer / Ctrl+P : OK
+- Persistance position/taille : OK
+
+→ Phase 1 close. Prêt pour Phase 1bis (impression silencieuse SumatraPDF via native messaging) quand demandée.

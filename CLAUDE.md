@@ -1,5 +1,7 @@
 # Aperçu PJ — extension Thunderbird
 
+**Statut Phase 1 : ✅ validée 2026-06-10 sur TB 151.0.1 (v0.2.0).**
+
 Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 
 ## Cible
