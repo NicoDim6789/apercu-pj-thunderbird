@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Aperçu PJ — Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <h1>Aperçu PJ — préférences</h1>
+
+  <form id="form">
+    <label class="row">
+      <span class="label">Taille maximale pour le chargement automatique</span>
+      <span class="control">
+        <input type="number" id="maxAutoSizeMB" min="1" max="500" step="1" required>
+        <span class="unit">Mo</span>
+      </span>
+      <span class="help">Au-delà, un bouton « Charger l'aperçu » remplace le rendu automatique. Défaut : 15 Mo.</span>
+    </label>
+
+    <label class="row">
+      <span class="label">Panneau replié par défaut</span>
+      <span class="control">
+        <input type="checkbox" id="panelCollapsed">
+      </span>
+      <span class="help">L'état est ensuite mémorisé entre les sessions.</span>
+    </label>
+
+    <div class="actions">
+      <button type="submit" id="save">Enregistrer</button>
+      <button type="button" id="reset">Réinitialiser</button>
+      <span id="status" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <script src="options.js"></script>
+</body>
+</html>

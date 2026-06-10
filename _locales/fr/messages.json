@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "Aperçu PJ",
+    "description": "Nom de l'extension"
+  },
+  "extDescription": {
+    "message": "Affiche automatiquement l'aperçu des PDF en pièce jointe directement dans la zone du message.",
+    "description": "Description courte de l'extension"
+  }
+}
