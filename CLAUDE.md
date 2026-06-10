@@ -4,6 +4,38 @@
 
 Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 
+---
+
+## 🔧 Reprendre ce projet avec Claude Code
+
+**Démarche standard pour toute modification ultérieure :**
+
+1. Ouvrir un terminal dans `D:\NICO\CLAUDE\Thunderbird\` et lancer `claude` (ou ouvrir le dossier depuis l'extension VSCode/JetBrains).
+2. Claude Code chargera automatiquement ce CLAUDE.md (contexte projet) et la mémoire associée (machine-locale, dans `C:\Users\Nico\.claude\projects\D--NICO-CLAUDE-Thunderbird\memory\`).
+3. Décrire la modification souhaitée en langage naturel. Exemples typiques :
+   - « ajoute un bouton 📥 Télécharger dans la toolbar »
+   - « change la couleur du badge en bleu »
+   - « la fenêtre s'ouvre trop petite, augmente la taille par défaut »
+   - « commence la Phase 1bis : impression silencieuse via SumatraPDF »
+
+**Après chaque modification de code, recharger l'extension dans Thunderbird :**
+- Ouvrir `about:debugging` (cf. README)
+- Cliquer **Actualiser** sur la carte « Aperçu PJ »
+- Tester l'effet directement
+
+**Pour packager en .xpi (install permanente) :**
+```powershell
+.\tools\build-xpi.ps1
+```
+Génère `dist/apercu-pj-vX.Y.Z.xpi` à installer via Modules complémentaires → ⚙.
+
+**Synchronisation 2 machines (PC fixe ↔ Surface Pro) :**
+- Le code est synchronisé via Git (push depuis l'une, pull sur l'autre).
+- Les préférences `storage.local` sont par machine (volontaire).
+- La mémoire Claude (`C:\Users\Nico\.claude\projects\...\memory\`) reste locale à chaque poste. Tout ce qui est nécessaire pour reprendre le projet est dans **ce CLAUDE.md** et dans **`.claude/session-log.md`** — donc l'autre machine peut reprendre sans cette mémoire (Claude la reconstituera au fil des sessions).
+
+---
+
 ## Cible
 
 - **Thunderbird 151+** (testé sur 151.0.1)

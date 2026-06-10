@@ -1,6 +1,7 @@
 # Build artifacts
 *.xpi
 *.zip
+dist/
 
 # Editor / OS
 .vscode/

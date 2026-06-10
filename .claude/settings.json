@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(ls:*)",
+      "Bash(rm:*)",
+      "Bash(du:*)",
+      "PowerShell(Get-ChildItem:*)",
+      "PowerShell(Compress-Archive:*)",
+      "PowerShell(Rename-Item:*)",
+      "PowerShell(New-Item:*)",
+      "PowerShell(Test-Path:*)"
+    ]
+  }
+}
