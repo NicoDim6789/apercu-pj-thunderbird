@@ -120,3 +120,37 @@ zéro chrome anglais. Pattern officiel « components » : doc créé par `getDoc
 - **Lot 3 v0.5 « Confort »** : C1 menu contextuel PJ, C2 raccourci global, C3 ouverture auto si 1 PDF,
   C4 badge toutes PJ (généralise le comptage au-delà des affichables).
 - Non planifiés (selon besoin) : B3 classement arbo chantier, B5/B6 étiquettes/déplacement, Phase 1bis/2.
+
+## 2026-06-11 — Lot 2 v0.4.0 « Actions PJ »
+
+### Livré (4 actions branchées dans le registre figé, sans toucher viewer.js)
+- **B1 `download.js`** — 📥 Télécharger : nom d'origine, direct vers Téléchargements.
+- **B2 `saveas.js`** — 💾 Enregistrer sous… : dialogue avec **nom intelligent**
+  `AAAA-MM-JJ_Expéditeur_Sujet.ext` (fallback = nom d'origine).
+- **B4 `open-external.js`** — 🖥 Ouvrir (système) : `downloads.download` puis `downloads.open(id)`
+  → application par défaut de l'OS (attend la fin du DL via `downloads.onChanged`).
+- **B7 `forward.js`** — ↪ Transférer : `compose.beginForward(messageId)` (transfère le message,
+  donc le PDF + contexte). Alternative non retenue : `beginNew` avec le seul fichier.
+- **`lib.js`** — utilitaires partagés : `fetchBlobUrl` (PJ → URL blob), `smartFilename`,
+  `downloadAttachment`, `waitDownloadComplete`, `sanitize`, `authorName`, `ymd`.
+
+### Plomberie
+- `background.handleGetPdfList` renvoie désormais `meta:{author,subject,date}` (via `messages.get`)
+  pour le nom intelligent. Viewer : `state.meta` + `ctx.meta` ajoutés au contexte du registre.
+- Permissions manifest ajoutées : **`downloads`**, **`downloads.open`**, **`compose`**.
+  ⚠️ Une install .xpi peut redemander l'acceptation des permissions ; le reload about:debugging non.
+- Version 0.4.0, `dist/apercu-pj-v0.4.0.xpi` rebuild + vérifié (actions + permissions présentes).
+- Syntaxe des 6 modules JS validée (Node parse-only).
+
+### À TESTER dans TB (après reload)
+1. Ouvre un PDF → la barre d'actions montre : 🖨 · 📥 · 💾 · 🖥 · ↪.
+2. **📥** → fichier dans Téléchargements (nom d'origine).
+3. **💾** → dialogue « Enregistrer sous » avec nom `AAAA-MM-JJ_Expéditeur_Sujet.pdf`.
+4. **🖥** → le PDF s'ouvre dans ta visionneuse système (Acrobat/Edge/Sumatra…).
+5. **↪** → fenêtre de transfert avec le PDF joint.
+6. Sur une **image** : 📥/💾/🖥 dispo, 🖨 et ↪ adaptés (🖨 PDF only ; ↪ transfère le message).
+
+### Remote / push
+⚠️ Le dépôt n'a **aucun remote** (`git remote -v` vide). Lots 1 et 2 commités en local sur `main`
+mais **non poussés**. À décider : créer un dépôt GitHub privé (ex. `apercu-pj-thunderbird`) puis
+`git remote add origin … && git push -u origin main`, ou fournir une URL existante.

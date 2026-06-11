@@ -14,7 +14,7 @@
 //      (windows.create type:popup) avec viewer.html?messageId=N.
 //   3. Le viewer demande la liste des PDFs et leur contenu via runtime.
 
-console.log("[Aperçu PJ] background démarré v0.3.0");
+console.log("[Aperçu PJ] background démarré v0.4.0");
 
 const PDF_MIME = "application/pdf";
 
@@ -131,8 +131,15 @@ async function handleGetPdfList(messageId) {
       items = collectPreviewable(attachments);
       previewByMessage.set(messageId, items);
     }
+    // Métadonnées du message pour le « nom intelligent » (B2).
+    let meta = null;
+    try {
+      const m = await messenger.messages.get(messageId);
+      meta = { author: m.author, subject: m.subject, date: m.date };
+    } catch (_) { /* meta optionnelle */ }
+
     // La clé reste `pdfs` côté message (lue telle quelle par le viewer).
-    return { ok: true, pdfs: items };
+    return { ok: true, pdfs: items, meta };
   } catch (err) {
     console.error("[Aperçu PJ] getPdfList:", err);
     return { ok: false, error: String(err?.message || err) };

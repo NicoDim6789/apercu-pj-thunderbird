@@ -20,6 +20,10 @@ import {
 } from "../vendor/pdfjs/web/pdf_viewer.mjs";
 import { toolbar } from "./toolbar/registry.js";
 import "./toolbar/actions/print.js";
+import "./toolbar/actions/download.js";
+import "./toolbar/actions/saveas.js";
+import "./toolbar/actions/open-external.js";
+import "./toolbar/actions/forward.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
@@ -38,6 +42,7 @@ const messageId = Number(params.get("messageId"));
 const state = {
   messageId,
   items: [],          // { partName, name, size, contentType, kind:'pdf'|'image' }
+  meta: null,         // { author, subject, date } du message (nom intelligent B2)
   activeIndex: -1,
   doc: null,          // PDFDocumentProxy du PDF actif
   docGen: 0,          // incrémenté à chaque changement de doc (garde anti-course)
@@ -347,6 +352,7 @@ function refreshToolbar(item) {
     pdf: isPdf ? item : null,
     item,
     message: { id: state.messageId },
+    meta: state.meta,
     pdfName: item?.name,
     pdfDoc: isPdf ? state.doc : null,
     pdfCanvas: null, // plus de canvas unique en v0.3 (scroll continu)
@@ -527,6 +533,7 @@ async function init() {
     });
     if (!res?.ok) throw new Error(res?.error || "getPdfList a échoué");
     state.items = res.pdfs || [];
+    state.meta = res.meta || null;
 
     if (state.items.length === 0) {
       hide(el.viewerContainer); hide(el.imageView); hide(el.loading); clearError();
