@@ -1,11 +1,23 @@
-// viewer.js — fenêtre popup d'aperçu PDF
+// viewer.js — fenêtre popup d'aperçu (v0.3)
 //
-// Charge la liste des PDFs du message via runtime, rend le PDF sélectionné
-// avec PDF.js, expose une toolbar extensible (registre d'actions).
-// Sauvegarde la géométrie de la fenêtre dans storage.local (via background)
-// pour la restaurer à l'ouverture suivante.
+// Affichage assuré par les COMPOSANTS officiels PDF.js (pdf_viewer.mjs) :
+//   - PDFViewer            → scroll continu multi-pages (A1), zoom, rotation (A4)
+//   - PDFFindController     → recherche texte dans le PDF (A3)
+//   - PDFLinkService        → liens internes / navigation
+// On garde notre shell maison autour : liste multi-PJ (gauche), vignettes (A2),
+// barre d'actions extensible (registre figé). Les images sont rendues à part (D1).
+//
+// Pattern officiel « components » : le document est créé par le cœur pdf.mjs
+// (getDocument) puis passé à PDFViewer.setDocument(). Les deux partagent la même
+// version 6.0.227, donc l'interop par proxy est sûre.
 
 import * as pdfjsLib from "../vendor/pdfjs/build/pdf.mjs";
+import {
+  EventBus,
+  PDFLinkService,
+  PDFFindController,
+  PDFViewer,
+} from "../vendor/pdfjs/web/pdf_viewer.mjs";
 import { toolbar } from "./toolbar/registry.js";
 import "./toolbar/actions/print.js";
 
@@ -17,42 +29,58 @@ const STANDARD_FONT_URL = new URL("../vendor/pdfjs/web/standard_fonts/", import.
 const WASM_URL = new URL("../vendor/pdfjs/web/wasm/", import.meta.url).href;
 const ICC_URL = new URL("../vendor/pdfjs/web/iccs/", import.meta.url).href;
 
+const THUMB_WIDTH = 120; // px — largeur de rendu des vignettes
+const DEFAULT_ZOOM = "page-width";
+
 const params = new URLSearchParams(location.search);
 const messageId = Number(params.get("messageId"));
 
 const state = {
   messageId,
-  pdfs: [],
+  items: [],          // { partName, name, size, contentType, kind:'pdf'|'image' }
   activeIndex: -1,
-  doc: null,
-  pageNum: 1,
-  numPages: 0,
-  zoom: "fit-width",
-  renderTask: null,
+  doc: null,          // PDFDocumentProxy du PDF actif
+  docGen: 0,          // incrémenté à chaque changement de doc (garde anti-course)
+  thumbsBuiltGen: -1, // docGen pour lequel les vignettes ont déjà été construites
+  preferredZoom: DEFAULT_ZOOM,
+  imageUrl: null,     // objectURL courant (image) à révoquer
 };
 
 const el = {
   root: document.getElementById("root"),
   list: document.getElementById("pdf-list"),
+  thumbRail: document.getElementById("thumb-rail"),
   empty: document.getElementById("empty-state"),
-  canvas: document.getElementById("pdf-canvas"),
   loading: document.getElementById("loading"),
   error: document.getElementById("error"),
   renderArea: document.getElementById("render-area"),
+  viewerContainer: document.getElementById("viewerContainer"),
+  viewer: document.getElementById("viewer"),
+  imageView: document.getElementById("image-view"),
+  imageEl: document.getElementById("image-el"),
   pageInput: document.getElementById("page-input"),
   pageTotal: document.getElementById("page-total"),
+  btnThumbs: document.getElementById("btn-thumbs"),
   btnPrev: document.getElementById("btn-prev"),
   btnNext: document.getElementById("btn-next"),
   btnZoomIn: document.getElementById("btn-zoom-in"),
   btnZoomOut: document.getElementById("btn-zoom-out"),
+  btnRotate: document.getElementById("btn-rotate"),
+  btnFind: document.getElementById("btn-find"),
   zoomSelect: document.getElementById("zoom-select"),
   actions: document.getElementById("toolbar-actions"),
+  findbar: document.getElementById("findbar"),
+  findInput: document.getElementById("find-input"),
+  findPrev: document.getElementById("find-prev"),
+  findNext: document.getElementById("find-next"),
+  findCount: document.getElementById("find-count"),
+  findClose: document.getElementById("find-close"),
 };
 
-function show(n) { n.hidden = false; }
-function hide(n) { n.hidden = true; }
+function show(n) { if (n) n.hidden = false; }
+function hide(n) { if (n) n.hidden = true; }
 function setError(msg) {
-  hide(el.canvas); hide(el.loading); hide(el.empty);
+  hide(el.viewerContainer); hide(el.imageView); hide(el.loading); hide(el.empty);
   el.error.textContent = msg;
   show(el.error);
 }
@@ -64,41 +92,133 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
+// ---------- l10n minimal : PDFViewer attend un objet l10n ; on lui fournit un
+// stub no-op (notre chrome est déjà en français, on ne dépend pas de ses chaînes).
+const l10n = {
+  getLanguage: () => "fr",
+  getDirection: () => "ltr",
+  async get(_ids, _args, fallback) { return fallback ?? ""; },
+  async translate() {},
+  translateOnce() {},
+  async translateElements() {},
+  async translateRoots() {},
+  connectRoot() {},
+  disconnectRoot() {},
+  pause() {},
+  resume() {},
+  pauseObserving() {},
+  resumeObserving() {},
+  async formatMessages(ids) {
+    return (Array.isArray(ids) ? ids : [ids]).map(() => ({ value: "", attributes: null }));
+  },
+};
+
+// ---------- Mise en place du viewer PDF.js ----------
+const eventBus = new EventBus();
+const linkService = new PDFLinkService({ eventBus });
+const findController = new PDFFindController({ eventBus, linkService });
+const pdfViewer = new PDFViewer({
+  container: el.viewerContainer,
+  viewer: el.viewer,
+  eventBus,
+  linkService,
+  findController,
+  l10n,
+  textLayerMode: 1,
+});
+linkService.setViewer(pdfViewer);
+
+eventBus.on("pagesinit", () => {
+  pdfViewer.currentScaleValue = state.preferredZoom || DEFAULT_ZOOM;
+  syncZoomSelect(pdfViewer.currentScaleValue);
+  updateNavButtons();
+});
+
+eventBus.on("pagechanging", (evt) => {
+  el.pageInput.value = String(evt.pageNumber);
+  highlightThumb(evt.pageNumber);
+  updateNavButtons();
+});
+
+eventBus.on("scalechanging", () => {
+  const v = pdfViewer.currentScaleValue;
+  state.preferredZoom = v;
+  persistZoom(v);
+  syncZoomSelect(v);
+});
+
+eventBus.on("updatefindmatchescount", ({ matchesCount }) => showFindCount(matchesCount));
+eventBus.on("updatefindcontrolstate", ({ matchesCount, state: fstate }) =>
+  showFindCount(matchesCount, fstate));
+
+// ---------- Liste des pièces jointes ----------
+function kindIcon(kind) { return kind === "image" ? "🖼" : "📄"; }
+
 function renderList() {
   el.list.innerHTML = "";
-  el.root.classList.toggle("single-pdf", state.pdfs.length <= 1);
+  el.root.classList.toggle("single-item", state.items.length <= 1);
 
-  state.pdfs.forEach((pdf, i) => {
-    const item = document.createElement("div");
-    item.className = "pdf-list-item" + (i === state.activeIndex ? " active" : "");
-    item.tabIndex = 0;
-    item.textContent = pdf.name;
+  state.items.forEach((item, i) => {
+    const row = document.createElement("div");
+    row.className = "pdf-list-item" + (i === state.activeIndex ? " active" : "");
+    row.tabIndex = 0;
+    const icon = document.createElement("span");
+    icon.className = "kind";
+    icon.textContent = kindIcon(item.kind);
+    row.appendChild(icon);
+    row.appendChild(document.createTextNode(item.name));
     const size = document.createElement("span");
     size.className = "size";
-    size.textContent = formatSize(pdf.size);
-    item.appendChild(size);
-    item.addEventListener("click", () => selectPdf(i));
-    item.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectPdf(i); }
+    size.textContent = formatSize(item.size);
+    row.appendChild(size);
+    row.addEventListener("click", () => selectItem(i));
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectItem(i); }
     });
-    el.list.appendChild(item);
+    el.list.appendChild(row);
   });
 }
 
-async function selectPdf(index) {
-  if (index < 0 || index >= state.pdfs.length) return;
+async function selectItem(index) {
+  if (index < 0 || index >= state.items.length) return;
   state.activeIndex = index;
   renderList();
   clearError();
-  hide(el.canvas); hide(el.empty);
+  closeFind();
 
-  await loadAndRender(state.pdfs[index]);
+  const item = state.items[index];
+  if (item.kind === "image") {
+    await showImage(item);
+  } else {
+    await showPdf(item);
+  }
 }
 
-async function loadAndRender(pdf) {
+// ---------- Affichage PDF ----------
+async function fetchBuffer(item) {
+  const res = await browser.runtime.sendMessage({
+    type: "getPdf",
+    messageId: state.messageId,
+    partName: item.partName,
+  });
+  if (!res?.ok) throw new Error(res?.error || "Lecture pièce jointe échouée");
+  return res.buffer;
+}
+
+async function showPdf(item) {
+  releaseImage();
+  hide(el.imageView); hide(el.empty); clearError();
+  setPdfControlsEnabled(true);
+  // Le conteneur doit être visible AVANT setDocument : sinon clientWidth = 0
+  // et le preset « page-width » calculé à pagesinit serait erroné.
+  show(el.viewerContainer);
   show(el.loading);
+
+  const gen = ++state.docGen;
   try {
-    const buf = await fetchPdfBuffer(pdf);
+    const buf = await fetchBuffer(item);
+    if (gen !== state.docGen) return; // un autre item a été sélectionné entre-temps
+
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(buf),
       cMapUrl: CMAP_URL,
@@ -106,126 +226,278 @@ async function loadAndRender(pdf) {
       standardFontDataUrl: STANDARD_FONT_URL,
       wasmUrl: WASM_URL,
       iccUrl: ICC_URL,
-      disableAutoFetch: true,
-      disableStream: true,
     });
-    state.doc = await loadingTask.promise;
-    state.numPages = state.doc.numPages;
-    state.pageNum = 1;
-    el.pageInput.value = "1";
-    el.pageInput.max = state.numPages;
-    el.pageTotal.textContent = `/ ${state.numPages}`;
-    document.title = `Aperçu PJ — ${pdf.name}`;
+    const doc = await loadingTask.promise;
+    if (gen !== state.docGen) { doc.destroy(); return; }
+
+    state.doc = doc;
+    pdfViewer.setDocument(doc);
+    linkService.setDocument(doc, null);
+
+    el.pageInput.max = String(doc.numPages);
+    el.pageTotal.textContent = `/ ${doc.numPages}`;
+    document.title = `Aperçu PJ — ${item.name}`;
+
     hide(el.loading);
-    show(el.canvas);
-    await renderPage();
-    refreshToolbar(pdf);
+
+    // Vignettes : construites paresseusement quand le rail est ouvert.
+    if (!el.thumbRail.hidden) buildThumbnails(doc, gen);
+
+    refreshToolbar(item);
   } catch (err) {
-    console.error("[Aperçu PJ] loadAndRender:", err);
+    if (gen !== state.docGen) return;
+    console.error("[Aperçu PJ] showPdf:", err);
     hide(el.loading);
-    setError(`Impossible d'afficher « ${pdf.name} » : ${err.message || err}`);
+    setError(`Impossible d'afficher « ${item.name} » : ${err.message || err}`);
     refreshToolbar(null);
   }
 }
 
-async function fetchPdfBuffer(pdf) {
-  const res = await browser.runtime.sendMessage({
-    type: "getPdf",
-    messageId: state.messageId,
-    partName: pdf.partName,
-  });
-  if (!res?.ok) throw new Error(res?.error || "Lecture pièce jointe échouée");
-  return res.buffer;
+// ---------- Affichage image (D1) ----------
+function releaseImage() {
+  if (state.imageUrl) { URL.revokeObjectURL(state.imageUrl); state.imageUrl = null; }
 }
 
-async function renderPage() {
-  if (!state.doc) return;
-  if (state.renderTask) {
-    try { state.renderTask.cancel(); } catch (_) {}
-    state.renderTask = null;
-  }
-  const page = await state.doc.getPage(state.pageNum);
-  const baseViewport = page.getViewport({ scale: 1 });
+async function showImage(item) {
+  // On vide le viewer PDF pour libérer la mémoire et arrêter le rendu.
+  state.docGen++;
+  if (state.doc) { try { pdfViewer.setDocument(null); } catch (_) {} }
+  state.doc = null;
+  hide(el.viewerContainer); hide(el.empty); hide(el.thumbRail);
+  setPdfControlsEnabled(false);
+  show(el.loading);
 
-  let scale;
-  if (state.zoom === "fit-width") {
-    const availableWidth = el.renderArea.clientWidth - 24;
-    scale = Math.max(0.1, availableWidth / baseViewport.width);
-  } else {
-    scale = parseFloat(state.zoom) || 1;
-  }
-  const viewport = page.getViewport({ scale });
-
-  const dpr = window.devicePixelRatio || 1;
-  el.canvas.width = Math.floor(viewport.width * dpr);
-  el.canvas.height = Math.floor(viewport.height * dpr);
-  el.canvas.style.width = `${Math.floor(viewport.width)}px`;
-  el.canvas.style.height = `${Math.floor(viewport.height)}px`;
-
-  const ctx = el.canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  state.renderTask = page.render({ canvasContext: ctx, viewport });
+  const gen = ++state.docGen;
   try {
-    await state.renderTask.promise;
+    const buf = await fetchBuffer(item);
+    if (gen !== state.docGen) return;
+    releaseImage();
+    const blob = new Blob([buf], { type: item.contentType || "image/*" });
+    state.imageUrl = URL.createObjectURL(blob);
+    el.imageEl.src = state.imageUrl;
+    el.imageEl.alt = item.name;
+    document.title = `Aperçu PJ — ${item.name}`;
+    hide(el.loading);
+    show(el.imageView);
+    refreshToolbar(item);
   } catch (err) {
-    if (err?.name !== "RenderingCancelledException") throw err;
-  } finally {
-    state.renderTask = null;
+    if (gen !== state.docGen) return;
+    console.error("[Aperçu PJ] showImage:", err);
+    hide(el.loading);
+    setError(`Impossible d'afficher « ${item.name} » : ${err.message || err}`);
+    refreshToolbar(null);
   }
-
-  el.btnPrev.disabled = state.pageNum <= 1;
-  el.btnNext.disabled = state.pageNum >= state.numPages;
 }
 
-function refreshToolbar(pdf) {
+// ---------- Vignettes (A2) ----------
+async function buildThumbnails(doc, gen) {
+  if (state.thumbsBuiltGen === gen) return;
+  state.thumbsBuiltGen = gen;
+  el.thumbRail.innerHTML = "";
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    if (gen !== state.docGen) return; // doc changé : on abandonne
+    let page;
+    try {
+      page = await doc.getPage(i);
+    } catch (_) { continue; }
+    if (gen !== state.docGen) return;
+
+    const base = page.getViewport({ scale: 1 });
+    const scale = THUMB_WIDTH / base.width;
+    const vp = page.getViewport({ scale });
+    const dpr = window.devicePixelRatio || 1;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(vp.width * dpr);
+    canvas.height = Math.floor(vp.height * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const wrap = document.createElement("button");
+    wrap.type = "button";
+    wrap.className = "thumb" + (i === pdfViewer.currentPageNumber ? " active" : "");
+    wrap.dataset.page = String(i);
+    wrap.appendChild(canvas);
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = String(i);
+    wrap.appendChild(num);
+    wrap.addEventListener("click", () => goPage(i));
+    el.thumbRail.appendChild(wrap);
+
+    try {
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    } catch (_) { /* rendu vignette non bloquant */ }
+  }
+}
+
+function highlightThumb(pageNumber) {
+  for (const t of el.thumbRail.querySelectorAll(".thumb")) {
+    t.classList.toggle("active", t.dataset.page === String(pageNumber));
+  }
+  const active = el.thumbRail.querySelector(".thumb.active");
+  if (active && !el.thumbRail.hidden) active.scrollIntoView({ block: "nearest" });
+}
+
+// ---------- Toolbar (registre d'actions, contrat figé) ----------
+function refreshToolbar(item) {
+  const isPdf = item?.kind === "pdf";
   const ctx = {
-    pdf,
+    pdf: isPdf ? item : null,
+    item,
     message: { id: state.messageId },
-    pdfName: pdf?.name,
-    // Permet aux actions (impression, etc.) d'accéder au document chargé.
-    pdfDoc: state.doc,
-    pdfCanvas: el.canvas,
+    pdfName: item?.name,
+    pdfDoc: isPdf ? state.doc : null,
+    pdfCanvas: null, // plus de canvas unique en v0.3 (scroll continu)
+    viewer: pdfViewer,
   };
   toolbar.render(el.actions, ctx);
 }
 
-// --------- Événements UI ---------
-el.btnPrev.addEventListener("click", () => {
-  if (state.pageNum > 1) { state.pageNum--; el.pageInput.value = state.pageNum; renderPage(); }
-});
-el.btnNext.addEventListener("click", () => {
-  if (state.pageNum < state.numPages) { state.pageNum++; el.pageInput.value = state.pageNum; renderPage(); }
-});
-el.pageInput.addEventListener("change", () => {
-  const v = Math.max(1, Math.min(state.numPages, parseInt(el.pageInput.value, 10) || 1));
-  state.pageNum = v; el.pageInput.value = v; renderPage();
-});
-el.zoomSelect.addEventListener("change", () => {
-  state.zoom = el.zoomSelect.value;
-  renderPage();
-});
-el.btnZoomIn.addEventListener("click", () => bumpZoom(+1));
-el.btnZoomOut.addEventListener("click", () => bumpZoom(-1));
-
-function bumpZoom(direction) {
-  const steps = [0.5, 0.75, 1, 1.25, 1.5, 2];
-  const current = state.zoom === "fit-width" ? 1 : parseFloat(state.zoom);
-  let idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
-  if (idx === -1) idx = steps.indexOf(1);
-  idx = Math.max(0, Math.min(steps.length - 1, idx + direction));
-  state.zoom = String(steps[idx]);
-  el.zoomSelect.value = state.zoom;
-  renderPage();
+// ---------- Navigation / zoom / rotation ----------
+function goPage(n) {
+  if (!state.doc) return;
+  const p = Math.max(1, Math.min(pdfViewer.pagesCount, n));
+  pdfViewer.currentPageNumber = p;
 }
 
-window.addEventListener("resize", () => {
-  if (state.zoom === "fit-width" && state.doc) renderPage();
+function updateNavButtons() {
+  const cur = pdfViewer.currentPageNumber || 1;
+  const total = pdfViewer.pagesCount || 0;
+  el.btnPrev.disabled = cur <= 1;
+  el.btnNext.disabled = total === 0 || cur >= total;
+}
+
+function zoomBy(direction) {
+  if (!state.doc) return;
+  const cur = pdfViewer.currentScale || 1;
+  const next = direction > 0 ? cur * 1.1 : cur / 1.1;
+  pdfViewer.currentScaleValue = String(Math.max(0.1, Math.min(10, +next.toFixed(3))));
+}
+
+function syncZoomSelect(value) {
+  const options = [...el.zoomSelect.options].map((o) => o.value);
+  el.zoomSelect.value = options.includes(value) ? value : "";
+}
+
+function persistZoom(value) {
+  // Préférence par machine (storage.local). On ne mémorise que les valeurs
+  // « stables » (presets nommés) pour rester prévisible d'un PDF à l'autre.
+  if (typeof value === "string" && /^(auto|page-width|page-fit)$/.test(value)) {
+    try { browser.storage.local.set({ preferredZoom: value }); } catch (_) {}
+  }
+}
+
+// ---------- Recherche (A3) ----------
+function dispatchFind(type, findPrevious = false) {
+  eventBus.dispatch("find", {
+    source: window,
+    type,
+    query: el.findInput.value,
+    caseSensitive: false,
+    entireWord: false,
+    highlightAll: true,
+    findPrevious,
+    matchDiacritics: false,
+  });
+}
+
+function openFind() {
+  if (!state.doc) return;
+  show(el.findbar);
+  el.findInput.focus();
+  el.findInput.select();
+}
+
+function closeFind() {
+  if (el.findbar.hidden) return;
+  hide(el.findbar);
+  el.findInput.value = "";
+  el.findCount.textContent = "";
+  // Efface les surlignages
+  eventBus.dispatch("find", {
+    source: window, type: "", query: "", caseSensitive: false,
+    entireWord: false, highlightAll: false, findPrevious: false, matchDiacritics: false,
+  });
+}
+
+function showFindCount(matchesCount, fstate) {
+  // FindState : 0 FOUND, 1 NOT_FOUND, 2 WRAPPED, 3 PENDING
+  if (fstate === 1) { el.findCount.textContent = "Aucun résultat"; return; }
+  if (!el.findInput.value) { el.findCount.textContent = ""; return; }
+  if (matchesCount && matchesCount.total > 0) {
+    el.findCount.textContent = `${matchesCount.current} / ${matchesCount.total}`;
+  } else {
+    el.findCount.textContent = "";
+  }
+}
+
+function setPdfControlsEnabled(on) {
+  for (const b of [el.btnThumbs, el.btnPrev, el.btnNext, el.btnZoomIn,
+    el.btnZoomOut, el.btnRotate, el.btnFind, el.pageInput, el.zoomSelect]) {
+    if (b) b.disabled = !on;
+  }
+}
+
+// ---------- Événements UI ----------
+el.btnThumbs.addEventListener("click", () => {
+  el.thumbRail.hidden = !el.thumbRail.hidden;
+  if (!el.thumbRail.hidden && state.doc) buildThumbnails(state.doc, state.docGen);
+});
+el.btnPrev.addEventListener("click", () => goPage(pdfViewer.currentPageNumber - 1));
+el.btnNext.addEventListener("click", () => goPage(pdfViewer.currentPageNumber + 1));
+el.pageInput.addEventListener("change", () => goPage(parseInt(el.pageInput.value, 10) || 1));
+el.zoomSelect.addEventListener("change", () => {
+  if (state.doc && el.zoomSelect.value) pdfViewer.currentScaleValue = el.zoomSelect.value;
+});
+el.btnZoomIn.addEventListener("click", () => zoomBy(+1));
+el.btnZoomOut.addEventListener("click", () => zoomBy(-1));
+el.btnRotate.addEventListener("click", () => {
+  if (state.doc) pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360;
+});
+el.btnFind.addEventListener("click", () => (el.findbar.hidden ? openFind() : closeFind()));
+
+el.findInput.addEventListener("input", () => dispatchFind(""));
+el.findInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); dispatchFind("again", e.shiftKey); }
+  else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+});
+el.findPrev.addEventListener("click", () => dispatchFind("again", true));
+el.findNext.addEventListener("click", () => dispatchFind("again", false));
+el.findClose.addEventListener("click", () => closeFind());
+
+// ---------- Raccourcis clavier (A6) ----------
+window.addEventListener("keydown", (e) => {
+  const inField = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+    e.preventDefault(); openFind(); return;
+  }
+  if (e.key === "Escape") {
+    if (!el.findbar.hidden) { closeFind(); return; }
+    window.close(); return;
+  }
+  if (inField) return;
+
+  switch (e.key) {
+    case "ArrowRight":
+      e.preventDefault(); goPage(pdfViewer.currentPageNumber + 1); break;
+    case "ArrowLeft":
+      e.preventDefault(); goPage(pdfViewer.currentPageNumber - 1); break;
+    case "Home":
+      e.preventDefault(); goPage(1); break;
+    case "End":
+      e.preventDefault(); goPage(pdfViewer.pagesCount); break;
+    case "+": case "=":
+      e.preventDefault(); zoomBy(+1); break;
+    case "-":
+      e.preventDefault(); zoomBy(-1); break;
+    default: break;
+  }
 });
 
-// Sauvegarde de la géométrie avant fermeture (pour restauration à la
-// prochaine ouverture). Déclenché aussi quand l'utilisateur ferme via la
-// croix : l'event beforeunload est l'occasion fiable.
+// ---------- Sauvegarde de la géométrie de la fenêtre (inchangé) ----------
 function saveGeometry() {
   const geom = {
     left: window.screenX,
@@ -233,37 +505,42 @@ function saveGeometry() {
     width: window.outerWidth,
     height: window.outerHeight,
   };
-  // sendMessage est "fire and forget" ici, on n'attend pas.
   try { browser.runtime.sendMessage({ type: "saveGeometry", geom }); } catch (_) {}
 }
-window.addEventListener("beforeunload", saveGeometry);
+window.addEventListener("beforeunload", () => { releaseImage(); saveGeometry(); });
 
-// --------- Initialisation ---------
+// ---------- Initialisation ----------
 async function init() {
   if (!Number.isFinite(state.messageId)) {
     setError("messageId manquant dans l'URL.");
     return;
   }
   try {
+    const prefs = await browser.storage.local.get({ preferredZoom: DEFAULT_ZOOM });
+    state.preferredZoom = prefs.preferredZoom || DEFAULT_ZOOM;
+  } catch (_) { /* défaut conservé */ }
+
+  try {
     const res = await browser.runtime.sendMessage({
       type: "getPdfList",
       messageId: state.messageId,
     });
     if (!res?.ok) throw new Error(res?.error || "getPdfList a échoué");
-    state.pdfs = res.pdfs || [];
+    state.items = res.pdfs || [];
 
-    if (state.pdfs.length === 0) {
-      hide(el.canvas); hide(el.loading); clearError();
+    if (state.items.length === 0) {
+      hide(el.viewerContainer); hide(el.imageView); hide(el.loading); clearError();
       show(el.empty);
       el.list.innerHTML = "";
       el.pageTotal.textContent = "/ 0";
+      setPdfControlsEnabled(false);
       refreshToolbar(null);
       return;
     }
 
     hide(el.empty);
     renderList();
-    await selectPdf(0);
+    await selectItem(0);
   } catch (err) {
     console.error("[Aperçu PJ] init:", err);
     setError(`Erreur d'initialisation : ${err.message || err}`);

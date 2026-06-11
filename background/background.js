@@ -14,7 +14,7 @@
 //      (windows.create type:popup) avec viewer.html?messageId=N.
 //   3. Le viewer demande la liste des PDFs et leur contenu via runtime.
 
-console.log("[Aperçu PJ] background démarré v0.2.0");
+console.log("[Aperçu PJ] background démarré v0.3.0");
 
 const PDF_MIME = "application/pdf";
 
@@ -26,20 +26,34 @@ async function getSettings() {
   return await messenger.storage.local.get(DEFAULTS);
 }
 
-function collectPdfAttachments(parts) {
+// Pièces jointes affichables par le viewer : PDF + images (D1).
+function previewKind(contentType) {
+  if (contentType === PDF_MIME) return "pdf";
+  if (typeof contentType === "string" && contentType.startsWith("image/")) return "image";
+  return null;
+}
+
+function collectPreviewable(parts) {
   const out = [];
   for (const p of parts || []) {
-    if (p.contentType === PDF_MIME && p.name) {
-      out.push({ partName: p.partName, name: p.name, size: p.size ?? 0 });
+    const kind = previewKind(p.contentType);
+    if (kind && p.name) {
+      out.push({
+        partName: p.partName,
+        name: p.name,
+        size: p.size ?? 0,
+        contentType: p.contentType,
+        kind,
+      });
     }
-    if (p.parts) out.push(...collectPdfAttachments(p.parts));
+    if (p.parts) out.push(...collectPreviewable(p.parts));
   }
   return out;
 }
 
-// Cache mémoire des PDFs détectés par mail, alimenté à onMessagesDisplayed,
+// Cache mémoire des pièces affichables par mail, alimenté à onMessagesDisplayed,
 // consulté à l'ouverture du viewer (évite un second listAttachments).
-const pdfsByMessage = new Map();
+const previewByMessage = new Map();
 
 async function refreshBadge(tab, messages) {
   const isMono = messages.length === 1;
@@ -52,15 +66,15 @@ async function refreshBadge(tab, messages) {
 
   try {
     const attachments = await messenger.messages.listAttachments(messageId);
-    const pdfs = collectPdfAttachments(attachments);
-    pdfsByMessage.set(messageId, pdfs);
+    const items = collectPreviewable(attachments);
+    previewByMessage.set(messageId, items);
     await messenger.messageDisplayAction.setBadgeText({
       tabId: tab.id,
-      text: pdfs.length > 0 ? String(pdfs.length) : "",
+      text: items.length > 0 ? String(items.length) : "",
     });
     await messenger.messageDisplayAction.setBadgeBackgroundColor({
       tabId: tab.id,
-      color: pdfs.length > 0 ? "#c0392b" : null,
+      color: items.length > 0 ? "#c0392b" : null,
     });
   } catch (err) {
     console.error("[Aperçu PJ] refreshBadge:", err);
@@ -111,13 +125,14 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
 
 async function handleGetPdfList(messageId) {
   try {
-    let pdfs = pdfsByMessage.get(messageId);
-    if (!pdfs) {
+    let items = previewByMessage.get(messageId);
+    if (!items) {
       const attachments = await messenger.messages.listAttachments(messageId);
-      pdfs = collectPdfAttachments(attachments);
-      pdfsByMessage.set(messageId, pdfs);
+      items = collectPreviewable(attachments);
+      previewByMessage.set(messageId, items);
     }
-    return { ok: true, pdfs };
+    // La clé reste `pdfs` côté message (lue telle quelle par le viewer).
+    return { ok: true, pdfs: items };
   } catch (err) {
     console.error("[Aperçu PJ] getPdfList:", err);
     return { ok: false, error: String(err?.message || err) };
