@@ -226,3 +226,29 @@ génération de vignette, puis c'est caché.
 1. Clic sur le bouton → popup avec vignettes (PDF = 1re page, image = aperçu).
 2. Clic sur une vignette → grande fenêtre ouverte directement sur cette PJ.
 3. Rouvrir le popup sur le même mail → vignettes instantanées (cache).
+
+## 2026-06-12 — RÉGRESSION popup + retour arrière (v0.6.2)
+
+### Constat (1er test réel du popup par Nico)
+Le popup (v0.6.0/0.6.1, jamais testé avant) **ne s'ouvre pas / ne montre rien** → Nico ne peut plus
+ouvrir « Aperçu PJ ». Le message s'affiche normalement, donc le spike n'a rien cassé ; c'est le
+`default_popup` qui plante. Cause probable : le popup s'appuie sur `lastMessageId` en mémoire du
+background, **perdu quand l'event page MV3 se suspend** → `getCurrent` renvoie null → popup vide.
+(Non confirmé faute de logs, mais c'est le suspect n°1.)
+
+### Décision : revenir au fiable
+- **v0.6.2** : `default_popup` retiré du manifest, **`onClicked` restauré** → le clic rouvre la
+  **fenêtre** (comportement validé en v0.3/v0.4) + correctif logo v0.5 + viewer + actions Lot 2/3.
+- Le code du popup (`popup/`) et ses endpoints (`getCurrent`/`openViewer`/`getThumb`/`putThumb`)
+  restent dans le repo mais **ne sont plus câblés** → à reprendre proprement plus tard (fix : le popup
+  doit récupérer le message via `tabs.query`+`messageDisplay.getDisplayedMessage`, pas via l'état
+  mémoire du background), AVEC un vrai test avant de re-livrer.
+
+### Leçon de process
+Trop de versions livrées sans test intermédiaire (v0.5, v0.6, spike). → Désormais : livrer **petit**,
+faire **tester chaque incrément** avant d'empiler.
+
+### Spike messageDisplayScripts — non concluant pour l'instant
+Pas de barre verte affichée. Indéterminé sans les logs console `[Aperçu PJ SPIKE]` (namespace présent ?
+`register()` OK/FAILED ?). À récupérer depuis la v0.6.1 encore installée si on veut trancher la
+faisabilité inline ; sinon le flux fenêtre suffit.

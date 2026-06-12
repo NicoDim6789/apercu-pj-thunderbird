@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.0");
+console.log("[Aperçu PJ] background démarré v0.6.2");
 
 const PDF_MIME = "application/pdf";
 
@@ -145,9 +145,19 @@ messenger.messageDisplay.onMessagesDisplayed.addListener(async (tab, displayedMe
   await onDisplayed(tab, messages);
 });
 
-// Le clic sur le bouton ouvre le popup de prévisualisation (default_popup dans
-// le manifest) ; il n'y a donc plus de listener onClicked. Le popup déclenche
-// l'ouverture de la grande fenêtre via le endpoint "openViewer".
+// Clic sur le bouton de la barre du message → ouverture de la fenêtre d'aperçu.
+messenger.messageDisplayAction.onClicked.addListener(async (tab) => {
+  try {
+    const messageId = await getDisplayedMessageId(tab.id);
+    if (messageId == null) {
+      console.warn("[Aperçu PJ] aucun message unique sélectionné");
+      return;
+    }
+    await openViewerForMessage(messageId);
+  } catch (err) {
+    console.error("[Aperçu PJ] onClicked:", err);
+  }
+});
 
 // ---------- C1 : entrée de menu contextuel sur les pièces jointes ----------
 async function setupMenus() {
