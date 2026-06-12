@@ -7,7 +7,11 @@ composants officiels PDF.js (`vendor/pdfjs/web/pdf_viewer.mjs`) → scroll conti
 images (D1).
 **v0.4.0 (Lot 2 « Actions PJ », 2026-06-11) : à tester.** 4 actions toolbar : 📥 Télécharger,
 💾 Enregistrer sous… (nom intelligent), 🖥 Ouvrir (système), ↪ Transférer. Nouvelles permissions :
-`downloads`, `downloads.open`, `compose`. Détails et checklists : `.claude/session-log.md`.
+`downloads`, `downloads.open`, `compose`.
+**v0.5.0 (Lot 3 « Confort » + correctif, 2026-06-11) : à tester.** Correctif majeur : `[hidden]`
+écrasé par `display:flex` → le logo de signature recouvrait le PDF (corrigé). C1 menu contextuel PJ,
+C2 raccourci `Ctrl+Alt+P`, C3 ouverture auto si 1 PDF (option), C4 badge = total des PJ. Permission
+`menus`. Détails et checklists : `.claude/session-log.md`.
 
 Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 

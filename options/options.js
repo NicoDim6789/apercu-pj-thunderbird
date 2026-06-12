@@ -2,6 +2,7 @@
 
 const DEFAULTS = {
   windowGeom: { width: 900, height: 950 },
+  autoOpenSingle: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +18,7 @@ async function load() {
   const g = stored.windowGeom || DEFAULTS.windowGeom;
   $("width").value = g.width;
   $("height").value = g.height;
+  $("autoOpenSingle").checked = !!stored.autoOpenSingle;
 }
 
 async function save(e) {
@@ -26,6 +28,7 @@ async function save(e) {
   const existing = await messenger.storage.local.get({ windowGeom: {} });
   await messenger.storage.local.set({
     windowGeom: { ...existing.windowGeom, width, height },
+    autoOpenSingle: $("autoOpenSingle").checked,
   });
   setStatus("Préférences enregistrées.");
 }

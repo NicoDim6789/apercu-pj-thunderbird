@@ -1,4 +1,9 @@
-/* viewer.css — UI de l'aperçu (v0.3, viewer = composants PDF.js) */
+/* viewer.css — UI de l'aperçu (v0.3+, viewer = composants PDF.js) */
+
+/* CRITIQUE : nos sélecteurs #id posent display:flex, ce qui écrase l'attribut
+   [hidden] (UA = display:none, spécificité plus faible). Sans cette règle,
+   #image-view et #findbar restent visibles et recouvrent le PDF. */
+[hidden] { display: none !important; }
 
 :root {
   --apj-bg: #fafafa;

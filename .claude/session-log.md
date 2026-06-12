@@ -151,6 +151,47 @@ zéro chrome anglais. Pattern officiel « components » : doc créé par `getDoc
 6. Sur une **image** : 📥/💾/🖥 dispo, 🖨 et ↪ adaptés (🖨 PDF only ; ↪ transfère le message).
 
 ### Remote / push
-⚠️ Le dépôt n'a **aucun remote** (`git remote -v` vide). Lots 1 et 2 commités en local sur `main`
-mais **non poussés**. À décider : créer un dépôt GitHub privé (ex. `apercu-pj-thunderbird`) puis
-`git remote add origin … && git push -u origin main`, ou fournir une URL existante.
+⚠️ Le dépôt n'a **aucun remote** (`git remote -v` vide) et `gh` n'est pas installé. Lots 1 et 2
+commités en local sur `main` mais **non poussés**. À faire côté Nico : créer un dépôt GitHub privé
+`apercu-pj-thunderbird` ; ensuite je fais `git remote add origin … && git push -u origin main`
+(identifiants HTTPS NicoDim6789 déjà en cache, comme pour le repo CCM).
+
+## 2026-06-11 — Correctif affichage + Lot 3 v0.5.0 « Confort »
+
+### Bug critique corrigé (retour test Nico)
+- **Symptôme** : le logo CCM (image `image001.jpg` de la signature) recouvrait le PDF, et la barre
+  de recherche restait toujours visible.
+- **Cause** : `#image-view` et `#findbar` portent `display:flex` (sélecteur #id), ce qui **écrase
+  l'attribut `[hidden]`** (UA `display:none`, spécificité plus faible) → ils ne se cachaient jamais.
+- **Fix** : règle globale `[hidden] { display:none !important; }` en tête de `viewer.css`.
+- **Bonus** : le viewer auto-sélectionne désormais le **1er PDF** (au lieu de la 1re pièce, souvent
+  l'image de signature inline). `viewer.js` init → `findIndex(kind==='pdf')`.
+
+### Lot 3 livré (v0.5.0)
+- **C1** menu contextuel : entrée « Aperçu PJ — voir les pièces jointes » sur clic droit d'une PJ
+  (`menus.create`, contextes `message_attachments` + `all_message_attachments`). Permission `menus`.
+- **C2** raccourci clavier `Ctrl+Alt+P` (`commands` dans le manifest + `commands.onCommand`).
+- **C3** ouverture auto si le message ouvert contient **exactement 1 PDF** — **option** (défaut OFF,
+  case dans les préférences). Garde-fou : ne se déclenche que sur un message ouvert dans son propre
+  onglet/fenêtre (`tab.type === "messageDisplay"`), pas le volet d'aperçu, + dédup par messageId.
+- **C4** badge = **nombre total de pièces jointes** (`countAttachments`, tous types), plus seulement
+  les affichables. ⚠️ inclut les images inline de signature (cf. demande « thumbnails » à cadrer).
+- Refactor : `openViewerForMessage` + `getDisplayedMessageId` partagés (bouton / menu / raccourci).
+- `background.js` réécrit, `options.html|js` + case `autoOpenSingle`, manifest 0.5.0.
+- Syntaxe JS + JSON validés, `dist/apercu-pj-v0.5.0.xpi` build OK.
+
+### Demande en attente de cadrage : aperçu/thumbnails des PJ (style Outlook)
+Nico veut « une petite icône avec la pièce jointe en petit en haut pour prévisualiser avant
+d'ouvrir », comme Outlook (chips avec vignette dans le volet de lecture). **Contrainte MV3** : on ne
+peut PAS injecter de vignettes dans le volet de lecture natif de TB (même limite que le pivot v0.1).
+Options proposées (à valider) : (A) popup de vignettes depuis le bouton toolbar « en haut » ;
+(B) vignettes dans la liste de gauche de NOTRE fenêtre. « logo plus grand » = taille à régler une
+fois la surface choisie.
+
+### À TESTER (après reload)
+1. **Correctif** : ouvrir un mail PDF + image signature → le PDF s'affiche (plus de logo par-dessus),
+   barre de recherche masquée tant qu'on ne clique pas 🔍.
+2. **C1** clic droit sur une PJ → « Aperçu PJ — voir les pièces jointes ».
+3. **C2** `Ctrl+Alt+P` sur un message → ouvre l'aperçu.
+4. **C3** activer l'option, ouvrir (double-clic) un mail à 1 seul PDF → fenêtre s'ouvre seule.
+5. **C4** badge = total des PJ du message.

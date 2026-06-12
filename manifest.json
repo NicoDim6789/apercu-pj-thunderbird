@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "default_locale": "fr",
 
   "browser_specific_settings": {
@@ -21,8 +21,16 @@
     "storage",
     "downloads",
     "downloads.open",
-    "compose"
+    "compose",
+    "menus"
   ],
+
+  "commands": {
+    "open-preview": {
+      "suggested_key": { "default": "Ctrl+Alt+P" },
+      "description": "Ouvrir l'aperçu des pièces jointes du message"
+    }
+  },
 
   "message_display_action": {
     "default_title": "Aperçu PJ — voir les PDF du message",

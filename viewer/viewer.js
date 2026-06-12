@@ -547,7 +547,10 @@ async function init() {
 
     hide(el.empty);
     renderList();
-    await selectItem(0);
+    // On ouvre d'emblée sur le 1er PDF (un mail commence souvent par l'image de
+    // signature inline) ; sinon sur le premier élément.
+    const firstPdf = state.items.findIndex((it) => it.kind === "pdf");
+    await selectItem(firstPdf >= 0 ? firstPdf : 0);
   } catch (err) {
     console.error("[Aperçu PJ] init:", err);
     setError(`Erreur d'initialisation : ${err.message || err}`);
