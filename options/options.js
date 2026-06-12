@@ -19,6 +19,9 @@ async function load() {
   $("width").value = g.width;
   $("height").value = g.height;
   $("autoOpenSingle").checked = !!stored.autoOpenSingle;
+
+  const diag = await messenger.storage.local.get({ inlineStatus: "(inconnu — recharge l'extension)" });
+  $("inline-status").textContent = "État : " + diag.inlineStatus;
 }
 
 async function save(e) {

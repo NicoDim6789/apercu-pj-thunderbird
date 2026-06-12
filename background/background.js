@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.8");
+console.log("[Aperçu PJ] background démarré v0.6.9");
 
 const PDF_MIME = "application/pdf";
 
@@ -234,6 +234,13 @@ if (messenger.commands?.onCommand) {
 // ---------- Aperçu inline DANS le message (messageDisplayScripts) ----------
 // Injecte inject/inline.* dans les messages affichés. S'applique aux messages
 // affichés APRÈS l'enregistrement → après reload, ouvrir un AUTRE message.
+// Le statut est écrit dans storage (lisible dans les préférences) + l'infobulle.
+function reportInline(status) {
+  try { messenger.storage.local.set({ inlineStatus: status }); } catch (_) {}
+  try {
+    messenger.messageDisplayAction.setTitle({ title: "Aperçu PJ v0.6.9 [inline: " + status + "]" });
+  } catch (_) {}
+}
 if (messenger.messageDisplayScripts) {
   messenger.messageDisplayScripts
     .register({
@@ -241,10 +248,11 @@ if (messenger.messageDisplayScripts) {
       css: [{ file: "inject/inline.css" }],
       js: [{ file: "inject/inline.js" }],
     })
-    .then(() => console.log("[Aperçu PJ] aperçu inline enregistré"))
-    .catch((err) => console.error("[Aperçu PJ] messageDisplayScripts.register:", err));
+    .then(() => { console.log("[Aperçu PJ] aperçu inline enregistré"); reportInline("ENREGISTRÉ OK"); })
+    .catch((err) => { console.error("[Aperçu PJ] register:", err); reportInline("ERREUR: " + (err?.message || err)); });
 } else {
-  console.warn("[Aperçu PJ] messageDisplayScripts indisponible — aperçu inline désactivé");
+  console.warn("[Aperçu PJ] messageDisplayScripts indisponible — permission ?");
+  reportInline("API ABSENTE (permission messagesModify non accordée)");
 }
 
 async function openViewerFromPopup(messageId, part) {
