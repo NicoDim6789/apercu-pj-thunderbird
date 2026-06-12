@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.7");
+console.log("[Aperçu PJ] background démarré v0.6.8");
 
 const PDF_MIME = "application/pdf";
 
@@ -229,6 +229,22 @@ if (messenger.commands?.onCommand) {
   });
 } else {
   console.warn("[Aperçu PJ] API commands indisponible — C2 désactivé");
+}
+
+// ---------- Aperçu inline DANS le message (messageDisplayScripts) ----------
+// Injecte inject/inline.* dans les messages affichés. S'applique aux messages
+// affichés APRÈS l'enregistrement → après reload, ouvrir un AUTRE message.
+if (messenger.messageDisplayScripts) {
+  messenger.messageDisplayScripts
+    .register({
+      runAt: "document_idle",
+      css: [{ file: "inject/inline.css" }],
+      js: [{ file: "inject/inline.js" }],
+    })
+    .then(() => console.log("[Aperçu PJ] aperçu inline enregistré"))
+    .catch((err) => console.error("[Aperçu PJ] messageDisplayScripts.register:", err));
+} else {
+  console.warn("[Aperçu PJ] messageDisplayScripts indisponible — aperçu inline désactivé");
 }
 
 async function openViewerFromPopup(messageId, part) {

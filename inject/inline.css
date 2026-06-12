@@ -1,0 +1,66 @@
+/* inject/inline.css — barre d'aperçu injectée DANS le message.
+   Couleurs en dur (le document du message n'a pas nos variables CSS). */
+
+#apj-inline-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px 0;
+  background: #f0f4fb;
+  border: 1px solid #d0d8e8;
+  border-radius: 6px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+#apj-inline-strip .apj-strip-label {
+  font-weight: 600;
+  color: #2d4a73;
+}
+
+#apj-inline-strip .apj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid #c8d2e0;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+  color: #222;
+  max-width: 260px;
+}
+
+#apj-inline-strip .apj-chip:hover {
+  background: #e8eef8;
+  border-color: #2d4a73;
+}
+
+#apj-inline-strip .apj-chip-thumb {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  border: 1px solid #dddddd;
+  border-radius: 3px;
+  overflow: hidden;
+  font-size: 16px;
+}
+
+#apj-inline-strip .apj-chip-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+#apj-inline-strip .apj-chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
