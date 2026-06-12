@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.3");
+console.log("[Aperçu PJ] background démarré v0.6.6");
 
 const PDF_MIME = "application/pdf";
 
@@ -102,11 +102,15 @@ async function getDisplayedMessageId(tabId) {
 async function onDisplayed(tab, messages) {
   if (messages.length !== 1) {
     lastMessageId = null;
+    messenger.storage.local.set({ currentMessageId: null });
     await messenger.messageDisplayAction.setBadgeText({ tabId: tab.id, text: "" });
     return;
   }
   const messageId = messages[0].id;
   lastMessageId = messageId;
+  // Persisté pour le popup : survit à la mise en veille de l'event page MV3
+  // (lastMessageId en mémoire serait perdu → popup vide, bug v0.6.0/0.6.1).
+  messenger.storage.local.set({ currentMessageId: messageId });
   try {
     const attachments = await messenger.messages.listAttachments(messageId);
     const items = collectPreviewable(attachments);
@@ -168,7 +172,10 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "getPdf") return handleGetPdf(msg.messageId, msg.partName);
   if (msg?.type === "saveGeometry") return saveGeometry(msg.geom);
   // Endpoints du popup de prévisualisation.
-  if (msg?.type === "getCurrent") return Promise.resolve({ ok: true, messageId: lastMessageId });
+  if (msg?.type === "getCurrent") {
+    return messenger.storage.local.get({ currentMessageId: null })
+      .then((r) => ({ ok: true, messageId: r.currentMessageId }));
+  }
   if (msg?.type === "openViewer") return openViewerFromPopup(msg.messageId, msg.part);
   if (msg?.type === "getThumb") {
     return Promise.resolve({ ok: true, dataUrl: thumbCache.get(thumbKey(msg.messageId, msg.partName)) || null });

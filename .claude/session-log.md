@@ -264,3 +264,27 @@ quoi qu'il arrive ensuite) + menus/commands **gardés** (`if (messenger.menus?.o
 `if (messenger.commands?.onCommand)`, sinon warn). Description de l'extension corrigée (n'était plus
 « inline »). Leçon renforcée : un throw au top-level du background tue tous les listeners suivants —
 toujours enregistrer le canal vital en premier + garder les API optionnelles.
+
+## 2026-06-12 — Test inline non installable + popup réactivé corrigé (v0.6.6)
+
+### Découverte : les builds de test inline (0.6.4/0.6.5) ne s'installaient PAS
+Preuve : l'infobulle du bouton montrait l'ancien titre (pas « v0.6.5 »), la description était l'ancienne
+→ Nico restait sur la 0.6.3. **Cause : ces builds ajoutaient de nouvelles permissions** (`messagesModify`,
+`notifications`) → Thunderbird bloque/complique la MAJ depuis un fichier. La 0.6.3 (sans nouvelle
+permission) s'installait, elle. **Conséquence stratégique : on abandonne le test inline** (friction
+d'install) ; l'inline reste « non tranché ». Branches `spike/message-display-scripts` et `inline-test`
+laissées de côté (local).
+
+### Décision : livrer les vignettes via le POPUP (aucune nouvelle permission → install propre)
+Le popup (v0.6.0/0.6.1) avait **2 bugs**, tous deux désormais corrigés :
+1. « Receiving end does not exist » → corrigé en v0.6.3 (onMessage en premier).
+2. Popup vide : `getCurrent` lisait `lastMessageId` **en mémoire** du background, perdu à la mise en
+   veille de l'event page MV3. **Fix v0.6.6** : le messageId courant est **persisté dans
+   `storage.local` (`currentMessageId`)** par `onDisplayed`, et `getCurrent` le **lit depuis le
+   stockage** → robuste à la suspension.
+- `default_popup` réactivé. **Aucune permission ajoutée** → install propre comme la 0.6.3.
+- Flux : clic bouton → popup vignettes (1re page PDF / image) → clic vignette → fenêtre sur cette PJ.
+
+### À TESTER (v0.6.6)
+1. Install propre (pas de prompt de permission). 2. Clic bouton → popup avec vignettes. 3. Clic
+vignette → fenêtre. 4. Rouvrir popup même mail → vignettes instantanées (cache).
