@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.6");
+console.log("[Aperçu PJ] background démarré v0.6.7");
 
 const PDF_MIME = "application/pdf";
 

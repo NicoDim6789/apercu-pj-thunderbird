@@ -49,6 +49,8 @@ const state = {
   thumbsBuiltGen: -1, // docGen pour lequel les vignettes ont déjà été construites
   preferredZoom: DEFAULT_ZOOM,
   imageUrl: null,     // objectURL courant (image) à révoquer
+  listThumbs: {},     // partName → dataURL/objectURL (vignette de la liste, cache)
+  listThumbsStarted: false,
 };
 
 const el = {
@@ -167,21 +169,94 @@ function renderList() {
     const row = document.createElement("div");
     row.className = "pdf-list-item" + (i === state.activeIndex ? " active" : "");
     row.tabIndex = 0;
-    const icon = document.createElement("span");
-    icon.className = "kind";
-    icon.textContent = kindIcon(item.kind);
-    row.appendChild(icon);
-    row.appendChild(document.createTextNode(item.name));
-    const size = document.createElement("span");
+
+    // Vignette de la pièce jointe (aperçu façon Outlook) ; emoji en attendant.
+    const thumb = document.createElement("div");
+    thumb.className = "li-thumb";
+    const cached = state.listThumbs[item.partName];
+    if (cached) {
+      const img = document.createElement("img");
+      img.src = cached; img.alt = "";
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = kindIcon(item.kind);
+    }
+
+    const info = document.createElement("div");
+    info.className = "li-info";
+    const name = document.createElement("div");
+    name.className = "li-name";
+    name.textContent = item.name;
+    const size = document.createElement("div");
     size.className = "size";
     size.textContent = formatSize(item.size);
-    row.appendChild(size);
+    info.append(name, size);
+
+    row.append(thumb, info);
     row.addEventListener("click", () => selectItem(i));
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectItem(i); }
     });
     el.list.appendChild(row);
   });
+
+  // Génère les vignettes une seule fois (puis cache → re-render instantané).
+  if (!state.listThumbsStarted) {
+    state.listThumbsStarted = true;
+    generateListThumbs();
+  }
+}
+
+// Vignette par pièce jointe : 1re page pour les PDF, image réduite pour les images.
+async function makeListThumb(item) {
+  const buf = await fetchBuffer(item);
+  if (item.kind === "image") {
+    return URL.createObjectURL(new Blob([buf], { type: item.contentType || "image/*" }));
+  }
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buf),
+    cMapUrl: CMAP_URL,
+    cMapPacked: true,
+    standardFontDataUrl: STANDARD_FONT_URL,
+    wasmUrl: WASM_URL,
+    iccUrl: ICC_URL,
+  }).promise;
+  try {
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: 96 / base.width });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(vp.width);
+    canvas.height = Math.round(vp.height);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    return canvas.toDataURL("image/jpeg", 0.7);
+  } finally {
+    doc.destroy();
+  }
+}
+
+async function generateListThumbs() {
+  for (let i = 0; i < state.items.length; i++) {
+    const item = state.items[i];
+    if (state.listThumbs[item.partName]) continue;
+    let url;
+    try {
+      url = await makeListThumb(item);
+    } catch (err) {
+      console.error("[Aperçu PJ] vignette liste:", err);
+      continue;
+    }
+    state.listThumbs[item.partName] = url;
+    // Met à jour la ligne courante (re-query : les lignes ont pu être re-rendues).
+    const rows = el.list.querySelectorAll(".pdf-list-item");
+    const thumbEl = rows[i]?.querySelector(".li-thumb");
+    if (thumbEl) {
+      const img = document.createElement("img");
+      img.src = url; img.alt = "";
+      thumbEl.textContent = "";
+      thumbEl.appendChild(img);
+    }
+  }
 }
 
 async function selectItem(index) {
