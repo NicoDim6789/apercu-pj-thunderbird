@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.9");
+console.log("[Aperçu PJ] background démarré v0.7.0");
 
 const PDF_MIME = "application/pdf";
 
@@ -231,29 +231,40 @@ if (messenger.commands?.onCommand) {
   console.warn("[Aperçu PJ] API commands indisponible — C2 désactivé");
 }
 
-// ---------- Aperçu inline DANS le message (messageDisplayScripts) ----------
-// Injecte inject/inline.* dans les messages affichés. S'applique aux messages
-// affichés APRÈS l'enregistrement → après reload, ouvrir un AUTRE message.
-// Le statut est écrit dans storage (lisible dans les préférences) + l'infobulle.
+// ---------- Aperçu inline DANS le message (scripting.messageDisplay — MV3) ----------
+// En MV3, l'API est scripting.messageDisplay (pas messageDisplayScripts, qui est
+// MV2) et ne demande que `messagesRead` + `scripting`. Injecte inject/inline.*.
+// S'applique aux messages affichés APRÈS l'enregistrement → ouvrir un AUTRE message.
+// Statut écrit dans storage (visible dans les préférences) + infobulle.
 function reportInline(status) {
   try { messenger.storage.local.set({ inlineStatus: status }); } catch (_) {}
   try {
-    messenger.messageDisplayAction.setTitle({ title: "Aperçu PJ v0.6.9 [inline: " + status + "]" });
+    messenger.messageDisplayAction.setTitle({ title: "Aperçu PJ v0.7.0 [inline: " + status + "]" });
   } catch (_) {}
 }
-if (messenger.messageDisplayScripts) {
-  messenger.messageDisplayScripts
-    .register({
+async function setupInline() {
+  const api = messenger.scripting && messenger.scripting.messageDisplay;
+  if (!api) {
+    console.warn("[Aperçu PJ] scripting.messageDisplay indisponible");
+    reportInline("API ABSENTE (scripting.messageDisplay indisponible)");
+    return;
+  }
+  try {
+    try { await api.unregisterScripts({ ids: ["apj-inline"] }); } catch (_) {}
+    await api.registerScripts([{
+      id: "apj-inline",
+      js: ["inject/inline.js"],
+      css: ["inject/inline.css"],
       runAt: "document_idle",
-      css: [{ file: "inject/inline.css" }],
-      js: [{ file: "inject/inline.js" }],
-    })
-    .then(() => { console.log("[Aperçu PJ] aperçu inline enregistré"); reportInline("ENREGISTRÉ OK"); })
-    .catch((err) => { console.error("[Aperçu PJ] register:", err); reportInline("ERREUR: " + (err?.message || err)); });
-} else {
-  console.warn("[Aperçu PJ] messageDisplayScripts indisponible — permission ?");
-  reportInline("API ABSENTE (permission messagesModify non accordée)");
+    }]);
+    console.log("[Aperçu PJ] aperçu inline enregistré (scripting.messageDisplay)");
+    reportInline("ENREGISTRÉ OK");
+  } catch (err) {
+    console.error("[Aperçu PJ] registerScripts:", err);
+    reportInline("ERREUR: " + (err?.message || err));
+  }
 }
+setupInline();
 
 async function openViewerFromPopup(messageId, part) {
   try {
