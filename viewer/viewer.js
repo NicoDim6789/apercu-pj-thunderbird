@@ -547,10 +547,16 @@ async function init() {
 
     hide(el.empty);
     renderList();
-    // On ouvre d'emblée sur le 1er PDF (un mail commence souvent par l'image de
+    // Si le popup a demandé une PJ précise (?part=…), on l'ouvre ; sinon on
+    // ouvre d'emblée sur le 1er PDF (un mail commence souvent par l'image de
     // signature inline) ; sinon sur le premier élément.
-    const firstPdf = state.items.findIndex((it) => it.kind === "pdf");
-    await selectItem(firstPdf >= 0 ? firstPdf : 0);
+    const wantedPart = params.get("part");
+    let startIndex = wantedPart
+      ? state.items.findIndex((it) => it.partName === wantedPart)
+      : -1;
+    if (startIndex < 0) startIndex = state.items.findIndex((it) => it.kind === "pdf");
+    if (startIndex < 0) startIndex = 0;
+    await selectItem(startIndex);
   } catch (err) {
     console.error("[Aperçu PJ] init:", err);
     setError(`Erreur d'initialisation : ${err.message || err}`);

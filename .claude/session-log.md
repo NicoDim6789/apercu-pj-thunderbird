@@ -195,3 +195,34 @@ fois la surface choisie.
 3. **C2** `Ctrl+Alt+P` sur un message → ouvre l'aperçu.
 4. **C3** activer l'option, ouvrir (double-clic) un mail à 1 seul PDF → fenêtre s'ouvre seule.
 5. **C4** badge = total des PJ du message.
+
+## 2026-06-11 — v0.6.0 « Popup de prévisualisation des PJ »
+
+### Décision (validée par Nico)
+Vignettes « comme Outlook » : impossible dans le volet de lecture natif (limite MV3). Choix retenu :
+**popup de vignettes depuis le bouton** (le plus proche de « prévisualiser avant d'ouvrir »).
+
+### Livré
+- `popup/popup.html|css|js` : panneau ouvert au clic sur le bouton (manifest
+  `message_display_action.default_popup`). Affiche une carte par PJ avec **vignette** (1re page PDF
+  via pdf.mjs / image réduite), nom, taille. Clic sur une carte → ouvre la grande fenêtre **sur cette
+  PJ** puis se ferme.
+- **Cache des vignettes** côté background (`thumbCache`, `${messageId}:${partName}` → dataURL JPEG) :
+  endpoints `getThumb`/`putThumb` → réouverture du popup instantanée.
+- `background.js` : `lastMessageId` (suivi du message courant pour le popup), endpoints `getCurrent`
+  / `openViewer` / `getThumb` / `putThumb`. **onClicked supprimé** (remplacé par le popup). Les autres
+  entrées (menu C1, raccourci C2, auto C3) appellent toujours `openViewerForMessage`.
+- `openViewerForMessage(messageId, part)` : `part` optionnel → `viewer.html?...&part=…`.
+- `viewer.js` : init lit `?part=` et pré-sélectionne cette PJ (sinon 1er PDF).
+- Génération des vignettes **séquentielle + lazy** (spinner par carte), fallback 📄/🖼 si échec.
+- Version 0.6.0, build + vérifié.
+
+### Compromis assumé
+Le bouton ouvre maintenant le **popup** (1 clic), puis 1 clic sur la vignette pour la grande fenêtre.
+C'est ce qui permet la prévisualisation. Les gros PDF coûtent une lecture (≈ fetch complet) à la 1re
+génération de vignette, puis c'est caché.
+
+### À TESTER
+1. Clic sur le bouton → popup avec vignettes (PDF = 1re page, image = aperçu).
+2. Clic sur une vignette → grande fenêtre ouverte directement sur cette PJ.
+3. Rouvrir le popup sur le même mail → vignettes instantanées (cache).

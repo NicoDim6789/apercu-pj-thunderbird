@@ -11,7 +11,10 @@ images (D1).
 **v0.5.0 (Lot 3 « Confort » + correctif, 2026-06-11) : à tester.** Correctif majeur : `[hidden]`
 écrasé par `display:flex` → le logo de signature recouvrait le PDF (corrigé). C1 menu contextuel PJ,
 C2 raccourci `Ctrl+Alt+P`, C3 ouverture auto si 1 PDF (option), C4 badge = total des PJ. Permission
-`menus`. Détails et checklists : `.claude/session-log.md`.
+`menus`.
+**v0.6.0 (Popup de prévisualisation, 2026-06-11) : à tester.** Le bouton ouvre désormais un **popup
+de vignettes** (`popup/`, `default_popup`) : une vignette par PJ (1re page PDF / image), clic →
+grande fenêtre sur cette PJ. Cache des vignettes en mémoire (background). Détails : `.claude/session-log.md`.
 
 Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
 
@@ -137,7 +140,8 @@ viewer.html (fenêtre popup, déplaçable)
 ```
 .
 ├── manifest.json
-├── background/background.js   ← collectPreviewable (PDF + images), badge, endpoints runtime
+├── background/background.js   ← collectPreviewable, badge, endpoints runtime, cache vignettes
+├── popup/popup.html, popup.js, popup.css   ← panneau de prévisualisation (default_popup du bouton)
 ├── viewer/
 │   ├── viewer.html, viewer.js, viewer.css   ← shell maison autour des composants PDF.js
 │   └── toolbar/

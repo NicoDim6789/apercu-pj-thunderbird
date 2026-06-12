@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.5.0");
+console.log("[Aperçu PJ] background démarré v0.6.0");
 
 const PDF_MIME = "application/pdf";
 
@@ -63,15 +63,25 @@ function countAttachments(parts) {
 // consulté à l'ouverture du viewer (évite un second listAttachments).
 const previewByMessage = new Map();
 
+// Dernier message unique affiché (pour que le popup sache de quoi parler).
+let lastMessageId = null;
+
+// Cache des vignettes du popup : `${messageId}:${partName}` → dataURL.
+const thumbCache = new Map();
+const thumbKey = (messageId, partName) => `${messageId}:${partName}`;
+
 // C3 : messages déjà auto-ouverts (anti-réouverture).
 const autoOpened = new Set();
 
 // Ouvre la fenêtre d'aperçu pour un message donné, en restaurant la géométrie.
-async function openViewerForMessage(messageId) {
+// `part` (optionnel) pré-sélectionne une pièce jointe précise dans le viewer.
+async function openViewerForMessage(messageId, part) {
   const settings = await getSettings();
   const g = settings.windowGeom || DEFAULTS.windowGeom;
+  let path = `viewer/viewer.html?messageId=${messageId}`;
+  if (part) path += `&part=${encodeURIComponent(part)}`;
   const createParams = {
-    url: messenger.runtime.getURL(`viewer/viewer.html?messageId=${messageId}`),
+    url: messenger.runtime.getURL(path),
     type: "popup",
     width: g.width,
     height: g.height,
@@ -91,10 +101,12 @@ async function getDisplayedMessageId(tabId) {
 // ---------- Affichage d'un message : badge + cache + ouverture auto ----------
 async function onDisplayed(tab, messages) {
   if (messages.length !== 1) {
+    lastMessageId = null;
     await messenger.messageDisplayAction.setBadgeText({ tabId: tab.id, text: "" });
     return;
   }
   const messageId = messages[0].id;
+  lastMessageId = messageId;
   try {
     const attachments = await messenger.messages.listAttachments(messageId);
     const items = collectPreviewable(attachments);
@@ -133,19 +145,9 @@ messenger.messageDisplay.onMessagesDisplayed.addListener(async (tab, displayedMe
   await onDisplayed(tab, messages);
 });
 
-// Clic sur le bouton de la barre du message.
-messenger.messageDisplayAction.onClicked.addListener(async (tab) => {
-  try {
-    const messageId = await getDisplayedMessageId(tab.id);
-    if (messageId == null) {
-      console.warn("[Aperçu PJ] aucun message unique sélectionné");
-      return;
-    }
-    await openViewerForMessage(messageId);
-  } catch (err) {
-    console.error("[Aperçu PJ] onClicked:", err);
-  }
-});
+// Le clic sur le bouton ouvre le popup de prévisualisation (default_popup dans
+// le manifest) ; il n'y a donc plus de listener onClicked. Le popup déclenche
+// l'ouverture de la grande fenêtre via le endpoint "openViewer".
 
 // ---------- C1 : entrée de menu contextuel sur les pièces jointes ----------
 async function setupMenus() {
@@ -188,8 +190,28 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "getPdfList") return handleGetPdfList(msg.messageId);
   if (msg?.type === "getPdf") return handleGetPdf(msg.messageId, msg.partName);
   if (msg?.type === "saveGeometry") return saveGeometry(msg.geom);
+  // Endpoints du popup de prévisualisation.
+  if (msg?.type === "getCurrent") return Promise.resolve({ ok: true, messageId: lastMessageId });
+  if (msg?.type === "openViewer") return openViewerFromPopup(msg.messageId, msg.part);
+  if (msg?.type === "getThumb") {
+    return Promise.resolve({ ok: true, dataUrl: thumbCache.get(thumbKey(msg.messageId, msg.partName)) || null });
+  }
+  if (msg?.type === "putThumb") {
+    thumbCache.set(thumbKey(msg.messageId, msg.partName), msg.dataUrl);
+    return Promise.resolve({ ok: true });
+  }
   return undefined;
 });
+
+async function openViewerFromPopup(messageId, part) {
+  try {
+    await openViewerForMessage(messageId, part);
+    return { ok: true };
+  } catch (err) {
+    console.error("[Aperçu PJ] openViewerFromPopup:", err);
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
 
 async function handleGetPdfList(messageId) {
   try {
