@@ -12,7 +12,7 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.6.2");
+console.log("[Aperçu PJ] background démarré v0.6.3");
 
 const PDF_MIME = "application/pdf";
 
@@ -159,43 +159,10 @@ messenger.messageDisplayAction.onClicked.addListener(async (tab) => {
   }
 });
 
-// ---------- C1 : entrée de menu contextuel sur les pièces jointes ----------
-async function setupMenus() {
-  try { await messenger.menus.removeAll(); } catch (_) {}
-  try {
-    messenger.menus.create({
-      id: "apercu-pj-open",
-      title: "Aperçu PJ — voir les pièces jointes",
-      contexts: ["message_attachments", "all_message_attachments"],
-    });
-  } catch (err) {
-    console.error("[Aperçu PJ] setupMenus:", err);
-  }
-}
-setupMenus();
-
-messenger.menus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "apercu-pj-open") return;
-  try {
-    const messageId = await getDisplayedMessageId(tab.id);
-    if (messageId != null) await openViewerForMessage(messageId);
-  } catch (err) {
-    console.error("[Aperçu PJ] menu onClicked:", err);
-  }
-});
-
-// ---------- C2 : raccourci clavier (déclaré dans le manifest) ----------
-messenger.commands.onCommand.addListener(async (name, tab) => {
-  if (name !== "open-preview") return;
-  try {
-    const messageId = await getDisplayedMessageId(tab.id);
-    if (messageId != null) await openViewerForMessage(messageId);
-  } catch (err) {
-    console.error("[Aperçu PJ] command:", err);
-  }
-});
-
 // ---------- Endpoints runtime utilisés par le viewer ----------
+// ⚠️ ENREGISTRÉ EN PREMIER (avant menus/commands) : si une API optionnelle
+// échoue au chargement, le viewer doit malgré tout pouvoir dialoguer avec le
+// background. Sinon → « Could not establish connection. Receiving end does not exist ».
 messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "getPdfList") return handleGetPdfList(msg.messageId);
   if (msg?.type === "getPdf") return handleGetPdf(msg.messageId, msg.partName);
@@ -212,6 +179,50 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   }
   return undefined;
 });
+
+// ---------- C1 : entrée de menu contextuel sur les pièces jointes ----------
+// Gardé : si l'API menus est indisponible, on n'interrompt pas le script.
+async function setupMenus() {
+  try { await messenger.menus.removeAll(); } catch (_) {}
+  try {
+    messenger.menus.create({
+      id: "apercu-pj-open",
+      title: "Aperçu PJ — voir les pièces jointes",
+      contexts: ["message_attachments", "all_message_attachments"],
+    });
+  } catch (err) {
+    console.error("[Aperçu PJ] setupMenus:", err);
+  }
+}
+if (messenger.menus?.onClicked) {
+  setupMenus();
+  messenger.menus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId !== "apercu-pj-open") return;
+    try {
+      const messageId = await getDisplayedMessageId(tab.id);
+      if (messageId != null) await openViewerForMessage(messageId);
+    } catch (err) {
+      console.error("[Aperçu PJ] menu onClicked:", err);
+    }
+  });
+} else {
+  console.warn("[Aperçu PJ] API menus indisponible — C1 désactivé");
+}
+
+// ---------- C2 : raccourci clavier (déclaré dans le manifest) ----------
+if (messenger.commands?.onCommand) {
+  messenger.commands.onCommand.addListener(async (name, tab) => {
+    if (name !== "open-preview") return;
+    try {
+      const messageId = await getDisplayedMessageId(tab.id);
+      if (messageId != null) await openViewerForMessage(messageId);
+    } catch (err) {
+      console.error("[Aperçu PJ] command:", err);
+    }
+  });
+} else {
+  console.warn("[Aperçu PJ] API commands indisponible — C2 désactivé");
+}
 
 async function openViewerFromPopup(messageId, part) {
   try {

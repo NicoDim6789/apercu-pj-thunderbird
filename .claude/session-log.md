@@ -252,3 +252,15 @@ faire **tester chaque incrément** avant d'empiler.
 Pas de barre verte affichée. Indéterminé sans les logs console `[Aperçu PJ SPIKE]` (namespace présent ?
 `register()` OK/FAILED ?). À récupérer depuis la v0.6.1 encore installée si on veut trancher la
 faisabilité inline ; sinon le flux fenêtre suffit.
+
+### 2e bug trouvé (v0.6.2) puis corrigé (v0.6.3) — « Receiving end does not exist »
+Après le retour au clic→fenêtre (v0.6.2), la fenêtre s'ouvrait MAIS affichait « Erreur
+d'initialisation : Could not establish connection. Receiving end does not exist ». Diagnostic par la
+structure : le bloc **menus (C1) / commands (C2)** (ajouté en v0.5, jamais testé) plantait au
+chargement du background — **après** `onClicked` (d'où la fenêtre qui s'ouvre) mais **avant**
+`runtime.onMessage` (jamais enregistré → le viewer ne peut pas dialoguer).
+**Fix v0.6.3** : `runtime.onMessage` **enregistré en premier** (garantit le dialogue viewer↔background
+quoi qu'il arrive ensuite) + menus/commands **gardés** (`if (messenger.menus?.onClicked)` /
+`if (messenger.commands?.onCommand)`, sinon warn). Description de l'extension corrigée (n'était plus
+« inline »). Leçon renforcée : un throw au top-level du background tue tous les listeners suivants —
+toujours enregistrer le canal vital en premier + garder les API optionnelles.
