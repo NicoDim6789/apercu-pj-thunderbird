@@ -288,3 +288,38 @@ Le popup (v0.6.0/0.6.1) avait **2 bugs**, tous deux désormais corrigés :
 ### À TESTER (v0.6.6)
 1. Install propre (pas de prompt de permission). 2. Clic bouton → popup avec vignettes. 3. Clic
 vignette → fenêtre. 4. Rouvrir popup même mail → vignettes instantanées (cache).
+
+## 2026-06-12 (suite) — DÉBLOCAGE install + APERÇU INLINE qui marche (v0.7.0) ✅
+
+### Le vrai blocage install
+Les builds 0.6.4→0.6.6 ne s'installaient pas via « installer depuis un fichier » (l'infobulle montrait
+l'ancienne version). **Solution fiable trouvée : about:debugging → « Charger un module complémentaire
+temporaire » → `manifest.json`, puis « Actualiser » pour les MAJ.** (Temporaire = disparaît au
+redémarrage de TB ; install permanente propre à faire en fin de projet.)
+
+### v0.6.7 — A livré : vignettes par PJ dans la liste de la fenêtre
+Décision Nico : garder **clic = fenêtre** (popup retiré). Liste de gauche du viewer = une vignette par
+PJ (1re page PDF / image), avec cache. OK validé.
+
+### LA cause racine de l'inline (enfin trouvée)
+Nico voulait l'aperçu **dans le mail** (façon Outlook). On a longtemps cru « impossible en MV3 ». FAUX :
+- On utilisait **`messenger.messageDisplayScripts`** = API **MV2** (absente en MV3).
+- La bonne API MV3 = **`messenger.scripting.messageDisplay.registerScripts([{id,js,css,runAt}])`**,
+  perms **`messagesRead` + `scripting`** (PAS `messagesModify`, qui créait en plus la friction d'install).
+- Un namespace absent = permission manquante, pas une API supprimée. Cf. mémoire corrigée
+  `reference_tb_mv3_api_constraints`.
+
+### v0.7.0 — Aperçu inline DANS le message ✅ (confirmé en prod)
+- `inject/inline.js` + `inject/inline.css` injectés via `scripting.messageDisplay` ; barre
+  « 📎 Aperçu : [chips cliquables par PJ] » en haut du message ; clic → fenêtre sur la PJ.
+- Images : vraie miniature inline. PDF : icône 📄 (miniatures PDF inline = étape suivante, nécessite
+  génération côté background avec pdf.mjs).
+- Diagnostic inline lisible dans les préférences (storage `inlineStatus`) + infobulle.
+- Confirmé par Nico : infobulle « [inline: ENREGISTRÉ OK] » + barre 📎 visible + clic ouvre la fenêtre.
+
+### Reste / prochaines étapes
+- **Miniatures PDF dans les chips inline** (C2) : générer les vignettes PDF côté background (passer le
+  background en page module pour importer pdf.mjs) et les servir au content script via getThumb.
+- Inclure aussi les PJ non-affichables (docx, etc.) dans la barre ? (à voir avec Nico.)
+- **Install permanente** propre (le .xpi mettait mal à jour ; à régler — peut-être lié au redémarrage
+  requis ou à l'ex-permission messagesModify, maintenant retirée).
