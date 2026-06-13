@@ -21,17 +21,14 @@
 }
 
 #apj-inline-strip .apj-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  display: inline-block;
+  padding: 4px;
   background: #ffffff;
   border: 1px solid #c8d2e0;
   border-radius: 5px;
   cursor: pointer;
   font: inherit;
-  color: #222;
-  max-width: 260px;
+  line-height: 0;
 }
 
 #apj-inline-strip .apj-chip:hover {
@@ -39,28 +36,22 @@
   border-color: #2d4a73;
 }
 
+/* Miniature plus grande, sans nom de fichier (le nom est en infobulle). */
 #apj-inline-strip .apj-chip-thumb {
-  flex: 0 0 auto;
-  width: 30px;
-  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 120px;
+  min-height: 70px;
   background: #fafafa;
   border: 1px solid #dddddd;
   border-radius: 3px;
   overflow: hidden;
-  font-size: 16px;
+  font-size: 34px;
 }
 
 #apj-inline-strip .apj-chip-thumb img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: auto;
   display: block;
-}
-
-#apj-inline-strip .apj-chip-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }

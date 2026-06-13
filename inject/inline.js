@@ -36,17 +36,12 @@
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "apj-chip";
-      chip.title = "Ouvrir « " + item.name + " »";
+      chip.title = item.name; // nom seulement en infobulle (pas de texte sous la miniature)
 
       const thumb = document.createElement("span");
       thumb.className = "apj-chip-thumb";
-      thumb.textContent = item.kind === "image" ? "🖼" : "📄";
+      thumb.textContent = item.kind === "image" ? "🖼" : "📄"; // placeholder le temps du rendu
       chip.appendChild(thumb);
-
-      const name = document.createElement("span");
-      name.className = "apj-chip-name";
-      name.textContent = item.name;
-      chip.appendChild(name);
 
       chip.addEventListener("click", (e) => {
         e.preventDefault();
@@ -54,20 +49,17 @@
       });
       strip.appendChild(chip);
 
-      // Vignette image : récupération directe des octets → blob → <img>.
-      if (item.kind === "image") {
-        browser.runtime.sendMessage({ type: "getPdf", messageId, partName: item.partName })
-          .then((r) => {
-            if (!r || !r.ok) return;
-            const url = URL.createObjectURL(new Blob([r.buffer], { type: item.contentType || "image/*" }));
-            const img = document.createElement("img");
-            img.src = url;
-            img.alt = "";
-            thumb.textContent = "";
-            thumb.appendChild(img);
-          })
-          .catch(() => {});
-      }
+      // Miniature générée par le background (1re page PDF / image réduite).
+      browser.runtime.sendMessage({ type: "getThumb", messageId, partName: item.partName })
+        .then((r) => {
+          if (!r || !r.ok || !r.dataUrl) return;
+          const img = document.createElement("img");
+          img.src = r.dataUrl;
+          img.alt = "";
+          thumb.textContent = "";
+          thumb.appendChild(img);
+        })
+        .catch(() => {});
     });
 
     const root = document.body || document.documentElement;

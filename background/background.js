@@ -12,7 +12,17 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-console.log("[Aperçu PJ] background démarré v0.7.0");
+import * as pdfjsLib from "../vendor/pdfjs/build/pdf.mjs";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
+const APJ_CMAP_URL = new URL("../vendor/pdfjs/web/cmaps/", import.meta.url).href;
+const APJ_STD_FONT_URL = new URL("../vendor/pdfjs/web/standard_fonts/", import.meta.url).href;
+const APJ_WASM_URL = new URL("../vendor/pdfjs/web/wasm/", import.meta.url).href;
+const APJ_ICC_URL = new URL("../vendor/pdfjs/web/iccs/", import.meta.url).href;
+const APJ_THUMB_W = 200; // largeur de rendu des miniatures inline (px)
+
+console.log("[Aperçu PJ] background démarré v0.7.1");
 
 const PDF_MIME = "application/pdf";
 
@@ -177,13 +187,7 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
       .then((r) => ({ ok: true, messageId: r.currentMessageId }));
   }
   if (msg?.type === "openViewer") return openViewerFromPopup(msg.messageId, msg.part);
-  if (msg?.type === "getThumb") {
-    return Promise.resolve({ ok: true, dataUrl: thumbCache.get(thumbKey(msg.messageId, msg.partName)) || null });
-  }
-  if (msg?.type === "putThumb") {
-    thumbCache.set(thumbKey(msg.messageId, msg.partName), msg.dataUrl);
-    return Promise.resolve({ ok: true });
-  }
+  if (msg?.type === "getThumb") return handleGetThumb(msg.messageId, msg.partName);
   return undefined;
 });
 
@@ -307,6 +311,81 @@ async function handleGetPdf(messageId, partName) {
   } catch (err) {
     console.error("[Aperçu PJ] getPdf:", err);
     return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+// ---------- Miniatures (générées dans le background pour l'aperçu inline) ----------
+// La page d'arrière-plan possède un DOM → canvas + PDF.js utilisables ici.
+async function handleGetThumb(messageId, partName) {
+  try {
+    const key = thumbKey(messageId, partName);
+    if (thumbCache.has(key)) return { ok: true, dataUrl: thumbCache.get(key) };
+
+    let items = previewByMessage.get(messageId);
+    if (!items) {
+      const attachments = await messenger.messages.listAttachments(messageId);
+      items = collectPreviewable(attachments);
+      previewByMessage.set(messageId, items);
+    }
+    const item = items.find((i) => i.partName === partName);
+    if (!item) return { ok: false, error: "Pièce jointe introuvable" };
+
+    const dataUrl = await generateThumbDataUrl(messageId, item);
+    thumbCache.set(key, dataUrl);
+    return { ok: true, dataUrl };
+  } catch (err) {
+    console.error("[Aperçu PJ] getThumb:", err);
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+async function generateThumbDataUrl(messageId, item) {
+  const file = await messenger.messages.getAttachmentFile(messageId, item.partName);
+  const buf = await file.arrayBuffer();
+  return item.kind === "image"
+    ? await imageBufferToDataUrl(buf, item.contentType)
+    : await pdfBufferToDataUrl(buf);
+}
+
+function imageBufferToDataUrl(buf, contentType) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([buf], { type: contentType || "image/*" }));
+    const im = new Image();
+    im.onload = () => {
+      const scale = Math.min(1, APJ_THUMB_W / im.width);
+      const w = Math.max(1, Math.round(im.width * scale));
+      const h = Math.max(1, Math.round(im.height * scale));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(im, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.72));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image illisible")); };
+    im.src = url;
+  });
+}
+
+async function pdfBufferToDataUrl(buf) {
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buf),
+    cMapUrl: APJ_CMAP_URL,
+    cMapPacked: true,
+    standardFontDataUrl: APJ_STD_FONT_URL,
+    wasmUrl: APJ_WASM_URL,
+    iccUrl: APJ_ICC_URL,
+  }).promise;
+  try {
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: APJ_THUMB_W / base.width });
+    const c = document.createElement("canvas");
+    c.width = Math.round(vp.width);
+    c.height = Math.round(vp.height);
+    await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+    return c.toDataURL("image/jpeg", 0.72);
+  } finally {
+    doc.destroy();
   }
 }
 

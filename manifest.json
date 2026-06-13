@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "default_locale": "fr",
 
   "browser_specific_settings": {
@@ -13,7 +13,7 @@
   },
 
   "background": {
-    "scripts": ["background/background.js"]
+    "page": "background/background.html"
   },
 
   "permissions": [
@@ -34,7 +34,7 @@
   },
 
   "message_display_action": {
-    "default_title": "Aperçu PJ v0.7.0 — voir les pièces jointes",
+    "default_title": "Aperçu PJ v0.7.1 — voir les pièces jointes",
     "default_icon": {
       "16": "icons/icon.svg",
       "32": "icons/icon.svg"
