@@ -37,21 +37,27 @@
 }
 
 /* Miniature plus grande, sans nom de fichier (le nom est en infobulle). */
+/* Miniature : on plafonne largeur ET hauteur → le paysage garde sa belle largeur,
+   le portrait ne devient plus trop haut (limité par la hauteur). */
 #apj-inline-strip .apj-chip-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 120px;
-  min-height: 70px;
+  min-width: 56px;
+  min-height: 48px;
+  max-width: 120px;
+  max-height: 110px;
   background: #fafafa;
   border: 1px solid #dddddd;
   border-radius: 3px;
   overflow: hidden;
-  font-size: 34px;
+  font-size: 30px;
 }
 
 #apj-inline-strip .apj-chip-thumb img {
-  width: 100%;
+  max-width: 120px;
+  max-height: 110px;
+  width: auto;
   height: auto;
   display: block;
 }
