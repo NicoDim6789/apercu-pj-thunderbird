@@ -33,7 +33,7 @@ function getPdfjs() {
   return _pdfjsPromise;
 }
 
-console.log("[Aperçu PJ] background démarré v0.7.3");
+console.log("[Aperçu PJ] background démarré v1.0.0");
 
 const PDF_MIME = "application/pdf";
 
@@ -252,10 +252,9 @@ if (messenger.commands?.onCommand) {
 // S'applique aux messages affichés APRÈS l'enregistrement → ouvrir un AUTRE message.
 // Statut écrit dans storage (visible dans les préférences) + infobulle.
 function reportInline(status) {
+  // Statut consultable dans les préférences (diagnostic). Le titre du bouton
+  // reste propre en version finale (plus de version/diagnostic dans l'infobulle).
   try { messenger.storage.local.set({ inlineStatus: status }); } catch (_) {}
-  try {
-    messenger.messageDisplayAction.setTitle({ title: "Aperçu PJ v0.7.0 [inline: " + status + "]" });
-  } catch (_) {}
 }
 async function setupInline() {
   const api = messenger.scripting && messenger.scripting.messageDisplay;

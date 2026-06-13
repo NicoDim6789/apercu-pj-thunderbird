@@ -1,22 +1,29 @@
 # Aperçu PJ — extension Thunderbird
 
-**Statut Phase 1 : ✅ validée 2026-06-10 sur TB 151.0.1 (v0.2.0).**
-**v0.3.0 (Lot 1 « Affichage », 2026-06-11) : à tester dans TB.** Viewer reconstruit sur les
-composants officiels PDF.js (`vendor/pdfjs/web/pdf_viewer.mjs`) → scroll continu (A1), vignettes
-(A2), recherche texte (A3), rotation (A4), zoom mémorisé (A5), raccourcis clavier (A6), aperçu
-images (D1).
-**v0.4.0 (Lot 2 « Actions PJ », 2026-06-11) : à tester.** 4 actions toolbar : 📥 Télécharger,
-💾 Enregistrer sous… (nom intelligent), 🖥 Ouvrir (système), ↪ Transférer. Nouvelles permissions :
-`downloads`, `downloads.open`, `compose`.
-**v0.5.0 (Lot 3 « Confort » + correctif, 2026-06-11) : à tester.** Correctif majeur : `[hidden]`
-écrasé par `display:flex` → le logo de signature recouvrait le PDF (corrigé). C1 menu contextuel PJ,
-C2 raccourci `Ctrl+Alt+P`, C3 ouverture auto si 1 PDF (option), C4 badge = total des PJ. Permission
-`menus`.
-**v0.6.0 (Popup de prévisualisation, 2026-06-11) : à tester.** Le bouton ouvre désormais un **popup
-de vignettes** (`popup/`, `default_popup`) : une vignette par PJ (1re page PDF / image), clic →
-grande fenêtre sur cette PJ. Cache des vignettes en mémoire (background). Détails : `.claude/session-log.md`.
+**Statut : ✅ v1.0.0 (2026-06-13) — validée en prod sur TB 151.0.1.**
 
-Extension WebExtension qui affiche l'aperçu des PDF en pièce jointe dans une fenêtre dédiée déplaçable, ouverte d'un clic sur un bouton de la barre du message.
+Extension WebExtension (MV3) qui rend les pièces jointes (PDF + images) consultables sans casser le
+flux de lecture. Deux niveaux d'aperçu :
+
+1. **Aperçu inline DANS le message** (façon Outlook) — barre « 📎 Aperçu » de **miniatures cliquables**
+   (1re page des PDF / image), injectée en haut du message via `scripting.messageDisplay` (MV3, perms
+   `messagesRead` + `scripting`). Miniatures générées par le background (PDF.js en import dynamique),
+   mises en cache.
+2. **Fenêtre d'aperçu** — clic sur une miniature (ou sur le bouton `messageDisplayAction`) ouvre une
+   fenêtre déplaçable : viewer PDF.js (scroll continu, recherche, zoom, rotation, raccourcis), liste
+   des PJ avec vignettes, et barre d'actions (🖨 imprimer · 📥 télécharger · 💾 enregistrer sous nom
+   intelligent · 🖥 ouvrir système · ↪ transférer). + menu contextuel PJ, raccourci `Ctrl+Alt+P`,
+   badge nombre de PJ, ouverture auto optionnelle.
+
+Historique détaillé du développement (lots, pièges, corrections) : `.claude/session-log.md`.
+
+⚠️ **Leçon clé** (cf. mémoire `reference_tb_mv3_api_constraints`) : injecter dans le message se fait
+en MV3 via **`scripting.messageDisplay`** (PAS `messageDisplayScripts`, qui est MV2). Un namespace
+absent = permission manquante, pas une API supprimée.
+
+🔧 **Workflow de dev/MAJ fiable** : charger l'extension via `about:debugging` → « Charger un module
+complémentaire temporaire » → **`manifest.json` (le dossier, pas un .xpi)**, puis « Actualiser » pour
+chaque modif. (Charger un *fichier .xpi* fige la version : « Actualiser » recharge le même fichier.)
 
 ---
 

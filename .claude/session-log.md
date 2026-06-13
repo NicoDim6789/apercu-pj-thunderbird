@@ -323,3 +323,32 @@ Nico voulait l'aperçu **dans le mail** (façon Outlook). On a longtemps cru « 
 - Inclure aussi les PJ non-affichables (docx, etc.) dans la barre ? (à voir avec Nico.)
 - **Install permanente** propre (le .xpi mettait mal à jour ; à régler — peut-être lié au redémarrage
   requis ou à l'ex-permission messagesModify, maintenant retirée).
+
+## 2026-06-13 — v1.0.0 : miniatures PDF inline ✅ + version définitive
+
+### Miniatures PDF dans la barre inline — FAIT (confirmé par Nico « ça fonctionne bien »)
+- Génération des miniatures **côté background** : PDF.js chargé en **import dynamique**
+  (`import(runtime.getURL("vendor/pdfjs/build/pdf.mjs"))`) — le background « scripts » a un DOM (canvas
+  OK), pas besoin de page module (la tentative page module v0.7.1 ne se rechargeait pas → abandonnée).
+  Endpoint `getThumb` génère (1re page PDF / image), met en cache, sert le dataURL au content script.
+- Barre inline : miniatures **plus grandes (120px)**, **sans le nom** (nom en infobulle). `inject/inline.js`
+  demande `getThumb` pour chaque PJ.
+- **Bug clé corrigé** : `doc.destroy()` **n'existe pas en PDF.js v6** → `TypeError: doc.destroy is not a
+  function` dans le `finally` cassait le retour de la miniature PDF (les images passaient, pas les PDF).
+  Les 4 appels `doc.destroy()` sont désormais en `try/catch` (nettoyage géré par le GC).
+
+### Deux pièges « version » qui nous ont fait tourner en rond (à retenir)
+1. **Charger un .xpi fige la version** : en dev, « Actualiser » recharge le MÊME fichier .xpi. ⇒ charger
+   le **dossier (`manifest.json`)**, pas un .xpi → « Actualiser » prend toujours le dernier code.
+2. Le `setTitle` du diagnostic était **codé en dur sur « v0.7.0 »** (jamais mis à jour) → l'infobulle
+   affichait toujours v0.7.0 quelle que soit la version réelle. (La console disait la vérité.) Retiré en v1.0.0.
+
+### v1.0.0 — nettoyage version finale
+- `setTitle` de diagnostic retiré (infobulle propre) ; `default_title` sans version ; dossier `popup/`
+  (code mort, plus référencé) supprimé. Le statut inline reste consultable dans les préférences.
+- Build `dist/apercu-pj-v1.0.0.xpi`.
+
+### Reste
+- Install **permanente** propre (sur les 2 postes) au lieu du module temporaire (qui disparaît au
+  redémarrage de TB).
+- Push GitHub (dépôt à créer : `apercu-pj-thunderbird`).
