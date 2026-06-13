@@ -33,7 +33,7 @@ function getPdfjs() {
   return _pdfjsPromise;
 }
 
-console.log("[Aperçu PJ] background démarré v0.7.2");
+console.log("[Aperçu PJ] background démarré v0.7.3");
 
 const PDF_MIME = "application/pdf";
 
@@ -397,7 +397,7 @@ async function pdfBufferToDataUrl(buf) {
     await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
     return c.toDataURL("image/jpeg", 0.72);
   } finally {
-    doc.destroy();
+    try { doc.destroy(); } catch (_) { /* PDF.js v6 : pas de doc.destroy() → GC */ }
   }
 }
 

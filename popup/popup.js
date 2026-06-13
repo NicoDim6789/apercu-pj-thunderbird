@@ -177,7 +177,7 @@ async function pdfToThumb(buffer) {
     await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
     return c.toDataURL("image/jpeg", 0.72);
   } finally {
-    doc.destroy();
+    try { doc.destroy(); } catch (_) { /* PDF.js v6 : pas de doc.destroy() → GC */ }
   }
 }
 

@@ -231,7 +231,7 @@ async function makeListThumb(item) {
     await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
     return canvas.toDataURL("image/jpeg", 0.7);
   } finally {
-    doc.destroy();
+    try { doc.destroy(); } catch (_) { /* PDF.js v6 : pas de doc.destroy() → GC */ }
   }
 }
 
@@ -308,7 +308,7 @@ async function showPdf(item) {
       iccUrl: ICC_URL,
     });
     const doc = await loadingTask.promise;
-    if (gen !== state.docGen) { doc.destroy(); return; }
+    if (gen !== state.docGen) { try { doc.destroy(); } catch (_) {} return; }
 
     state.doc = doc;
     pdfViewer.setDocument(doc);
