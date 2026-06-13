@@ -12,17 +12,28 @@
 //
 // Le badge du bouton affiche le nombre total de pièces jointes (C4).
 
-import * as pdfjsLib from "../vendor/pdfjs/build/pdf.mjs";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
-const APJ_CMAP_URL = new URL("../vendor/pdfjs/web/cmaps/", import.meta.url).href;
-const APJ_STD_FONT_URL = new URL("../vendor/pdfjs/web/standard_fonts/", import.meta.url).href;
-const APJ_WASM_URL = new URL("../vendor/pdfjs/web/wasm/", import.meta.url).href;
-const APJ_ICC_URL = new URL("../vendor/pdfjs/web/iccs/", import.meta.url).href;
+// PDF.js est chargé À LA DEMANDE (import dynamique) pour générer les miniatures.
+// Background classique ("scripts") → pas d'import statique ; import() lazy via
+// une URL d'extension absolue (runtime.getURL). Évite de passer le background en
+// page module (qui ne se rechargeait pas / risquait de tout casser).
+const APJ_CMAP_URL = messenger.runtime.getURL("vendor/pdfjs/web/cmaps/");
+const APJ_STD_FONT_URL = messenger.runtime.getURL("vendor/pdfjs/web/standard_fonts/");
+const APJ_WASM_URL = messenger.runtime.getURL("vendor/pdfjs/web/wasm/");
+const APJ_ICC_URL = messenger.runtime.getURL("vendor/pdfjs/web/iccs/");
 const APJ_THUMB_W = 200; // largeur de rendu des miniatures inline (px)
 
-console.log("[Aperçu PJ] background démarré v0.7.1");
+let _pdfjsPromise = null;
+function getPdfjs() {
+  if (!_pdfjsPromise) {
+    _pdfjsPromise = import(messenger.runtime.getURL("vendor/pdfjs/build/pdf.mjs")).then((m) => {
+      m.GlobalWorkerOptions.workerSrc = messenger.runtime.getURL("vendor/pdfjs/build/pdf.worker.mjs");
+      return m;
+    });
+  }
+  return _pdfjsPromise;
+}
+
+console.log("[Aperçu PJ] background démarré v0.7.2");
 
 const PDF_MIME = "application/pdf";
 
@@ -367,6 +378,7 @@ function imageBufferToDataUrl(buf, contentType) {
 }
 
 async function pdfBufferToDataUrl(buf) {
+  const pdfjsLib = await getPdfjs();
   const doc = await pdfjsLib.getDocument({
     data: new Uint8Array(buf),
     cMapUrl: APJ_CMAP_URL,
