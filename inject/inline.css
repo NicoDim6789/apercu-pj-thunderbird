@@ -1,5 +1,6 @@
 /* inject/inline.css — barre d'aperçu injectée DANS le message.
-   Couleurs en dur (le document du message n'a pas nos variables CSS). */
+   Couleurs en dur (le document du message n'a pas nos variables CSS).
+   On distingue thème clair / thème sombre via prefers-color-scheme. */
 
 #apj-inline-strip {
   display: flex;
@@ -13,6 +14,31 @@
   border-radius: 6px;
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
+  position: relative;
+  z-index: 9999;
+}
+
+@media (prefers-color-scheme: dark) {
+  #apj-inline-strip {
+    background: #1e2a3a;
+    border-color: #2d4060;
+  }
+  #apj-inline-strip .apj-strip-label {
+    color: #7aabdf;
+  }
+  #apj-inline-strip .apj-chip {
+    background: #253040;
+    border-color: #334560;
+    color: #d0dce8;
+  }
+  #apj-inline-strip .apj-chip:hover {
+    background: #2d3d50;
+    border-color: #5b8dd6;
+  }
+  #apj-inline-strip .apj-chip-thumb {
+    background: #1a2030;
+    border-color: #334560;
+  }
 }
 
 #apj-inline-strip .apj-strip-label {

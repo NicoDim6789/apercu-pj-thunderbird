@@ -221,6 +221,8 @@ html, body {
   height: auto;
   background: white;
   box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transition: transform 0.2s ease;
+  transform-origin: center center;
 }
 
 /* ---------- États ---------- */
@@ -233,3 +235,12 @@ html, body {
   text-align: center;
 }
 #error { color: #c0392b; }
+
+/* ---------- Impression (window.print) ---------- */
+/* Masquer tout le chrome de l'extension pour n'imprimer que le PDF. */
+@media print {
+  #pdf-list, #thumb-rail, #toolbar, #findbar { display: none !important; }
+  #main { display: block !important; }
+  #render-area { position: static !important; overflow: visible !important; }
+  #viewerContainer { position: static !important; overflow: visible !important; }
+}

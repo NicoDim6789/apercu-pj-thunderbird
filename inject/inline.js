@@ -1,9 +1,7 @@
 // inject/inline.js — barre d'aperçu des pièces jointes injectée DANS le message
-// (via messageDisplayScripts). Affiche une « chip » cliquable par PJ, en haut du
-// message, façon Outlook. Clic → ouvre la fenêtre d'aperçu sur cette PJ.
-//
-// Les vignettes image sont rendues ici (faciles) ; les vignettes PDF viendront
-// d'une étape suivante (génération côté background). En attendant : icône 📄.
+// via scripting.messageDisplay.registerScripts() (MV3). Affiche une chip cliquable
+// par PJ en haut du message, façon Outlook. Clic → ouvre la fenêtre d'aperçu.
+// Miniatures (PDF 1re page + images) générées côté background via getThumb.
 
 (async () => {
   try {
@@ -62,8 +60,8 @@
         .catch(() => {});
     });
 
-    const root = document.body || document.documentElement;
-    if (root) root.insertBefore(strip, root.firstChild);
+    const root = document.body ?? document.documentElement;
+    root.prepend(strip);
   } catch (e) {
     console.error("[Aperçu PJ inline]", e);
   }

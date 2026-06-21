@@ -33,7 +33,7 @@ function getPdfjs() {
   return _pdfjsPromise;
 }
 
-console.log("[Aperçu PJ] background démarré v1.0.0");
+console.log("[Aperçu PJ] background démarré v" + messenger.runtime.getManifest().version);
 
 const PDF_MIME = "application/pdf";
 
@@ -71,6 +71,9 @@ function collectPreviewable(parts) {
 }
 
 // C4 : nombre total de pièces jointes (tous types, pas seulement affichables).
+// Note : l'API TB ne retourne pas content-disposition, donc on ne peut pas
+// distinguer les images inline (logos de signature) des PJ réelles. Le badge
+// peut donc être légèrement surévalué pour les mails avec logos inline nommés.
 function countAttachments(parts) {
   let n = 0;
   for (const p of parts || []) {

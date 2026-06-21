@@ -1,4 +1,4 @@
-// viewer.js — fenêtre popup d'aperçu (v0.3)
+// viewer.js — fenêtre popup d'aperçu
 //
 // Affichage assuré par les COMPOSANTS officiels PDF.js (pdf_viewer.mjs) :
 //   - PDFViewer            → scroll continu multi-pages (A1), zoom, rotation (A4)
@@ -516,9 +516,11 @@ function showFindCount(matchesCount, fstate) {
 
 function setPdfControlsEnabled(on) {
   for (const b of [el.btnThumbs, el.btnPrev, el.btnNext, el.btnZoomIn,
-    el.btnZoomOut, el.btnRotate, el.btnFind, el.pageInput, el.zoomSelect]) {
+    el.btnZoomOut, el.btnFind, el.pageInput, el.zoomSelect]) {
     if (b) b.disabled = !on;
   }
+  // La rotation reste disponible pour les images aussi (via CSS transform).
+  if (el.btnRotate) el.btnRotate.disabled = false;
 }
 
 // ---------- Événements UI ----------
@@ -535,7 +537,15 @@ el.zoomSelect.addEventListener("change", () => {
 el.btnZoomIn.addEventListener("click", () => zoomBy(+1));
 el.btnZoomOut.addEventListener("click", () => zoomBy(-1));
 el.btnRotate.addEventListener("click", () => {
-  if (state.doc) pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360;
+  if (state.doc) {
+    pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 90) % 360;
+  } else if (!el.imageView.hidden) {
+    // Rotation CSS pour les images (pas de PDF actif)
+    const cur = parseInt(el.imageEl.dataset.rotation || "0", 10);
+    const next = (cur + 90) % 360;
+    el.imageEl.dataset.rotation = String(next);
+    el.imageEl.style.transform = next ? `rotate(${next}deg)` : "";
+  }
 });
 el.btnFind.addEventListener("click", () => (el.findbar.hidden ? openFind() : closeFind()));
 
@@ -547,6 +557,13 @@ el.findInput.addEventListener("keydown", (e) => {
 el.findPrev.addEventListener("click", () => dispatchFind("again", true));
 el.findNext.addEventListener("click", () => dispatchFind("again", false));
 el.findClose.addEventListener("click", () => closeFind());
+
+// ---------- Zoom à la molette (Ctrl+scroll) ----------
+el.renderArea.addEventListener("wheel", (e) => {
+  if (!e.ctrlKey || !state.doc) return;
+  e.preventDefault();
+  zoomBy(e.deltaY < 0 ? +1 : -1);
+}, { passive: false });
 
 // ---------- Raccourcis clavier (A6) ----------
 window.addEventListener("keydown", (e) => {
@@ -588,7 +605,18 @@ function saveGeometry() {
   };
   try { browser.runtime.sendMessage({ type: "saveGeometry", geom }); } catch (_) {}
 }
-window.addEventListener("beforeunload", () => { releaseImage(); saveGeometry(); });
+window.addEventListener("beforeunload", () => {
+  releaseImage();
+  // Révoquer les objectURLs des vignettes de la liste (images seulement — les
+  // dataURLs PDF sont de simples strings, pas des objectURLs à révoquer).
+  for (const [partName, url] of Object.entries(state.listThumbs)) {
+    const item = state.items.find((i) => i.partName === partName);
+    if (item?.kind === "image" && url?.startsWith("blob:")) {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }
+  }
+  saveGeometry();
+});
 
 // ---------- Initialisation ----------
 async function init() {

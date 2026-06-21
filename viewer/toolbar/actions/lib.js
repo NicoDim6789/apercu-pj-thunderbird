@@ -53,17 +53,24 @@ export function smartFilename(item, meta) {
 }
 
 // Télécharge la PJ. saveAs:true → dialogue « Enregistrer sous » (nom proposé = filename).
+// L'URL blob est révoquée APRÈS la fin du téléchargement (pas au bout d'un délai
+// fixe qui était trop court pour les gros fichiers → download cassé).
 export async function downloadAttachment({ messageId, item, filename, saveAs }) {
   const url = await fetchBlobUrl(messageId, item.partName, item.contentType);
   try {
-    return await browser.downloads.download({
+    const id = await browser.downloads.download({
       url,
       filename: filename || item.name,
       saveAs: !!saveAs,
     });
-  } finally {
-    // L'URL blob doit survivre au démarrage du téléchargement : révocation différée.
-    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+    // Révocation différée : on attend la fin (ou l'échec) du download.
+    waitDownloadComplete(id)
+      .catch(() => {})
+      .finally(() => { try { URL.revokeObjectURL(url); } catch (_) {} });
+    return id;
+  } catch (err) {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+    throw err;
   }
 }
 
