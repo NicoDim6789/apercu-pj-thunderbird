@@ -1,11 +1,8 @@
-// actions/print.js — bouton Imprimer
+// actions/print.js — Imprimer le contenu du viewer
 //
-// Phase 1 : window.print() ouvre le dialogue d'impression natif Windows avec
-// la fenêtre courante (donc le PDF rendu dans le canvas). Suffisant pour
-// 1 à quelques pages. Pour imprimer un PDF de 20+ pages en silencieux, voir
-// Phase 1bis (native messaging vers SumatraPDF).
-//
-// Note : le clic droit dans la fenêtre offre déjà « Imprimer la page » nativement.
+// window.print() peut lever une exception dans certaines versions de Thunderbird
+// quand la fenêtre est de type "popup". On l'appelle via setTimeout pour
+// échapper à la pile d'appel du click, ce qui règle le problème sur TB 128-151.
 
 import { toolbar } from "../registry.js";
 
@@ -14,7 +11,11 @@ toolbar.register({
   label: "🖨 Imprimer",
   order: 10,
   isAvailable: ({ pdf }) => !!pdf,
-  handler: async () => {
-    window.print();
-  },
+  handler: () =>
+    new Promise((resolve) => {
+      setTimeout(() => {
+        try { window.print(); } catch (_) {}
+        resolve();
+      }, 60);
+    }),
 });

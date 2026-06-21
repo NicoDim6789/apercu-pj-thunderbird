@@ -1,9 +1,7 @@
-// actions/forward.js — B7 : transférer le message (qui porte la/les PJ)
+// actions/forward.js — Transférer le message (compose.beginForward)
 //
-// On utilise compose.beginForward : ouvre une fenêtre de transfert du message
-// courant, ce qui embarque le PDF + le contexte (expéditeur, sujet, corps).
-// Alternative possible (non retenue) : compose.beginNew avec uniquement le
-// fichier en pièce jointe, si on voulait transférer le PDF seul sans contexte.
+// Ouvre une fenêtre de rédaction avec le message complet en transfert
+// (expéditeur, sujet, corps, pièces jointes incluses).
 
 import { toolbar } from "../registry.js";
 
@@ -14,5 +12,11 @@ toolbar.register({
   isAvailable: ({ message }) => Number.isFinite(message?.id),
   handler: async ({ message }) => {
     await messenger.compose.beginForward(message.id);
+    const btn = document.querySelector('[data-action-id="forward"]');
+    if (btn) {
+      const prev = btn.innerHTML;
+      btn.innerHTML = `<span class="tb-act-icon">✓</span><span class="tb-act-label">Ouvert</span>`;
+      setTimeout(() => { if (btn) btn.innerHTML = prev; }, 2000);
+    }
   },
 });

@@ -225,36 +225,56 @@ html, body {
   overflow: hidden;
 }
 
-/* ========== Barre d'outils ========== */
+/* ========== Barre d'outils — 2 rangées ========== */
 #toolbar {
   display: flex;
-  align-items: center;
-  padding: 0 10px;
-  height: 48px;
-  min-height: 48px;
+  flex-direction: column;
   background: var(--apj-bg);
   border-bottom: 1px solid var(--apj-border);
-  gap: 3px;
   flex-shrink: 0;
   box-shadow: 0 1px 0 rgba(0,0,0,0.04);
 }
 
-/* Groupes de boutons */
-#toolbar > div  { display: flex; align-items: center; gap: 2px; }
-#toolbar-actions { margin-left: auto; gap: 5px; }
+/* Rangée 1 : navigation + zoom */
+#tb-row1 {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 46px;
+  gap: 3px;
+  border-bottom: 1px solid var(--apj-border);
+}
+#toolbar-nav, #toolbar-zoom { display: flex; align-items: center; gap: 2px; }
+
+/* Rangée 2 : actions */
+#toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  padding: 0 10px;
+  height: 38px;
+  gap: 4px;
+  background: var(--apj-canvas);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#toolbar-actions::-webkit-scrollbar { display: none; }
+
+/* Espace flexible dans la rangée 1 */
+.tb-flex-spacer { flex: 1; }
 
 /* Séparateur vertical */
 .tb-divider {
   width: 1px;
-  height: 22px;
+  height: 20px;
   background: var(--apj-border-mid);
   margin: 0 5px;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
-/* Boutons génériques de la toolbar */
-#toolbar button {
+/* Boutons génériques (nav + zoom, dans rangée 1) */
+#tb-row1 button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -268,33 +288,30 @@ html, body {
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: background var(--apj-t), color var(--apj-t), border-color var(--apj-t);
+  transition: background var(--apj-t), color var(--apj-t);
   flex-shrink: 0;
 }
-#toolbar button:hover:not(:disabled) {
+#tb-row1 button:hover:not(:disabled) {
   background: var(--apj-hover);
   color: var(--apj-fg);
-  border-color: transparent;
 }
-#toolbar button:active:not(:disabled) {
+#tb-row1 button:active:not(:disabled) {
   background: var(--apj-active-bg);
   color: var(--apj-accent);
 }
-#toolbar button:disabled { opacity: 0.28; cursor: not-allowed; }
-#toolbar button:focus-visible {
-  outline: 2px solid var(--apj-accent);
-  outline-offset: 1px;
-}
+#tb-row1 button:disabled { opacity: 0.28; cursor: not-allowed; }
+#tb-row1 button:focus-visible { outline: 2px solid var(--apj-accent); outline-offset: 1px; }
 
-/* Bouton "Commandes" : icône + texte → dimensions différentes */
+/* Bouton "Commandes" : plus large */
 #btn-cmd-palette {
   width: auto !important;
-  padding: 0 11px !important;
+  padding: 0 10px !important;
   gap: 6px;
   color: var(--apj-fg-2) !important;
   border: 1px solid var(--apj-border) !important;
-  font-size: 12.5px !important;
+  font-size: 12px !important;
   font-weight: 500;
+  flex-shrink: 0;
 }
 #btn-cmd-palette span { letter-spacing: 0.1px; }
 #btn-cmd-palette:hover:not(:disabled) {
@@ -317,12 +334,12 @@ html, body {
   border-radius: var(--apj-r);
   font-size: 12px;
   font-family: inherit;
-  height: 30px;
+  height: 28px;
   outline: none;
   transition: border-color var(--apj-t), box-shadow var(--apj-t);
 }
 #page-input {
-  width: 46px;
+  width: 44px;
   text-align: center;
   padding: 0 4px;
   cursor: text;
@@ -330,41 +347,43 @@ html, body {
 #zoom-select {
   padding: 0 6px;
   cursor: pointer;
-  min-width: 90px;
+  min-width: 88px;
 }
 #page-input:hover, #zoom-select:hover  { border-color: var(--apj-border-mid); }
 #page-input:focus, #zoom-select:focus  {
   border-color: var(--apj-accent);
   box-shadow: 0 0 0 2px var(--apj-accent-light);
 }
-#page-total {
-  color: var(--apj-fg-3);
-  font-size: 12px;
-  user-select: none;
-}
+#page-total { color: var(--apj-fg-3); font-size: 12px; user-select: none; }
 
-/* Boutons d'actions du registre (Imprimer, Télécharger, etc.) */
+/* Boutons d'actions (rangée 2) */
 #toolbar-actions button {
-  width: auto !important;
-  padding: 0 9px !important;
-  height: 30px !important;
-  font-size: 12.5px !important;
-  font-weight: 500;
-  color: var(--apj-fg) !important;
-  background: var(--apj-canvas) !important;
-  border: 1px solid var(--apj-border) !important;
-  border-radius: var(--apj-r) !important;
+  display: inline-flex;
+  align-items: center;
   gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
   white-space: nowrap;
+  cursor: pointer;
+  color: var(--apj-fg);
+  background: var(--apj-bg);
+  border: 1px solid var(--apj-border);
+  border-radius: 99px;
+  transition: background var(--apj-t), border-color var(--apj-t), color var(--apj-t);
+  flex-shrink: 0;
 }
 #toolbar-actions button:hover:not(:disabled) {
-  background: var(--apj-active-bg) !important;
-  border-color: var(--apj-accent) !important;
-  color: var(--apj-accent) !important;
+  background: var(--apj-active-bg);
+  border-color: var(--apj-accent);
+  color: var(--apj-accent);
 }
 #toolbar-actions button:active:not(:disabled) {
-  background: var(--apj-accent-mid) !important;
+  background: var(--apj-accent-mid);
 }
+#toolbar-actions button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* Icône + label dans les boutons d'actions */
 .tb-act-icon  { font-size: 13px; flex-shrink: 0; line-height: 1; }
