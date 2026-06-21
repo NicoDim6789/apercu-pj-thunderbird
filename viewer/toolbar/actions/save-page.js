@@ -5,11 +5,11 @@ toolbar.register({
   label: "🖼 Sauver la page",
   order: 16,
   isAvailable: ({ pdf }) => !!pdf,
-  handler: async ({ viewer, pdfName }) => {
-    if (!viewer?.pdfDocument) return;
+  handler: async ({ pdfDoc, viewer, pdfName }) => {
+    if (!pdfDoc) return;
 
     const pageNum = viewer.currentPageNumber;
-    const page = await viewer.pdfDocument.getPage(pageNum);
+    const page = await pdfDoc.getPage(pageNum);
     const vp = page.getViewport({ scale: 2 }); // 2× pour une qualité d'impression
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(vp.width);

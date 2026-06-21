@@ -1,67 +1,77 @@
-/* inject/inline.css — barre PJ style Outlook injectée dans le message.
-   Couleurs en dur (le document du message n'a pas les variables CSS du viewer).
+/* inject/inline.css — strip PJ injecté dans le message (Thunderbird).
+   Couleurs en dur : pas de variables CSS partagées avec le viewer.
    Dark mode via prefers-color-scheme. */
 
 /* ========== Strip principal ========== */
 #apj-inline-strip {
-  background: #f5f5f5;
-  border-bottom: 2px solid #edebe9;
-  padding: 8px 14px 12px;
-  margin: 0 0 12px;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #f6f7f9;
+  border-bottom: 1px solid #e3e5e8;
+  padding: 9px 16px 13px;
+  margin: 0 0 10px;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 13px;
   position: relative;
   z-index: 9999;
   box-sizing: border-box;
 }
 
-/* ========== Ligne d'en-tête ========== */
+/* ========== En-tête ========== */
 .apj-strip-header {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
-  gap: 6px;
+  gap: 7px;
 }
 .apj-strip-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: #605e5c;
+  letter-spacing: 0.7px;
+  color: #6b6f7a;
 }
 .apj-strip-count {
-  font-size: 11px;
-  color: #a19f9d;
+  font-size: 10.5px;
+  color: #9ea3af;
   font-weight: 400;
 }
 
-/* Bouton "À traiter" */
+/* Boutons d'action (À traiter, Tout télécharger…) */
 .apj-to-process-btn {
   margin-left: auto;
-  background: transparent;
-  border: 1px solid #d2d0ce;
-  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #d0d2d8;
+  border-radius: 5px;
   padding: 3px 11px;
   font-family: inherit;
-  font-size: 12px;
-  color: #605e5c;
+  font-size: 11.5px;
+  color: #5a5e6b;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   white-space: nowrap;
+  height: 26px;
+  font-weight: 500;
+}
+.apj-to-process-btn + .apj-to-process-btn {
+  margin-left: 5px;  /* entre deux boutons consécutifs */
 }
 .apj-to-process-btn:hover {
-  background: #deecf9;
+  background: #e5f1fb;
   border-color: #0078d4;
   color: #0078d4;
+  box-shadow: 0 1px 4px rgba(0,120,212,0.12);
 }
 .apj-to-process-btn.active {
-  background: #deecf9;
+  background: #e5f1fb;
   border-color: #0078d4;
   color: #0078d4;
   font-weight: 600;
+}
+.apj-to-process-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ========== Rangée de chips ========== */
@@ -71,43 +81,47 @@
   gap: 8px;
 }
 
-/* ========== Chip individuelle — style carte Outlook ========== */
+/* ========== Chip — carte de pièce jointe ========== */
 .apj-chip {
   display: flex;
   flex-direction: row;
   align-items: stretch;
   background: #ffffff;
-  border: 1px solid #e1dfdd;
-  border-radius: 4px;
+  border: 1px solid #e3e5e8;
+  border-radius: 7px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.12s, box-shadow 0.12s;
-  width: 210px;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.1s;
+  width: 218px;
   font: inherit;
   padding: 0;
   text-align: left;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 .apj-chip:hover {
   border-color: #0078d4;
-  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.15);
+  box-shadow: 0 3px 10px rgba(0,120,212,0.18), 0 1px 3px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
 }
-.apj-chip:focus {
+.apj-chip:focus-visible {
   outline: 2px solid #0078d4;
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
+.apj-chip:active { transform: translateY(0); }
 
 /* Zone miniature */
 .apj-chip-thumb {
-  flex: 0 0 68px;
-  width: 68px;
-  height: 76px;
+  flex: 0 0 66px;
+  width: 66px;
+  height: 78px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
-  border-right: 1px solid #e1dfdd;
+  background: #f0f1f3;
+  border-right: 1px solid #e3e5e8;
   overflow: hidden;
   position: relative;
+  flex-shrink: 0;
 }
 .apj-chip-thumb img {
   width: 100%;
@@ -119,23 +133,24 @@
 /* Badge de type (PDF / IMG) */
 .apj-type-badge {
   position: absolute;
-  bottom: 4px;
-  right: 4px;
-  font-size: 8.5px;
+  bottom: 5px;
+  right: 5px;
+  font-size: 8px;
   font-weight: 800;
   padding: 2px 4px;
-  border-radius: 2px;
-  letter-spacing: 0.4px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
   line-height: 1.2;
   pointer-events: none;
+  text-transform: uppercase;
 }
-.apj-type-pdf   { background: #d13438; color: #fff; }
-.apj-type-image { background: #107c10; color: #fff; }
+.apj-type-pdf   { background: #c42b1c; color: #fff; }
+.apj-type-image { background: #0a7a12; color: #fff; }
 
 /* Zone info */
 .apj-chip-info {
   flex: 1;
-  padding: 8px 10px 7px;
+  padding: 9px 11px 8px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -145,15 +160,20 @@
 .apj-chip-name {
   font-size: 12px;
   font-weight: 600;
-  color: #201f1e;
+  color: #1a1b1e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 .apj-chip-size {
   font-size: 11px;
-  color: #a19f9d;
+  color: #9ea3af;
+  line-height: 1.2;
+}
+.apj-chip-seen {
+  font-size: 10.5px;
+  margin-top: 2px;
   line-height: 1.2;
 }
 .apj-chip-amount {
@@ -167,22 +187,37 @@
 /* ========== Dark mode ========== */
 @media (prefers-color-scheme: dark) {
   #apj-inline-strip {
-    background: #252423;
-    border-bottom-color: #3b3a39;
+    background: #242527;
+    border-bottom-color: #35373c;
   }
-  .apj-strip-label  { color: #a19f9d; }
-  .apj-strip-count  { color: #6e6b68; }
+  .apj-strip-label  { color: #9ea3af; }
+  .apj-strip-count  { color: #5e6370; }
 
-  .apj-to-process-btn { border-color: #484644; color: #a19f9d; }
-  .apj-to-process-btn:hover, .apj-to-process-btn.active {
-    background: #0f3d66; border-color: #2899f5; color: #2899f5;
+  .apj-to-process-btn {
+    background: #2c2d30;
+    border-color: #464952;
+    color: #9ea3af;
+  }
+  .apj-to-process-btn:hover,
+  .apj-to-process-btn.active {
+    background: #0e3557;
+    border-color: #2fa3e8;
+    color: #2fa3e8;
+    box-shadow: 0 1px 4px rgba(47,163,232,0.15);
   }
 
-  .apj-chip { background: #1b1a19; border-color: #3b3a39; }
-  .apj-chip:hover { border-color: #2899f5; box-shadow: 0 2px 8px rgba(40,153,245,0.15); }
+  .apj-chip {
+    background: #1c1d1f;
+    border-color: #35373c;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .apj-chip:hover {
+    border-color: #2fa3e8;
+    box-shadow: 0 3px 10px rgba(47,163,232,0.2), 0 1px 3px rgba(0,0,0,0.3);
+  }
 
-  .apj-chip-thumb { background: #252423; border-right-color: #3b3a39; }
-  .apj-chip-name  { color: #f3f2f1; }
-  .apj-chip-size  { color: #6e6b68; }
-  .apj-chip-amount { color: #2899f5; }
+  .apj-chip-thumb  { background: #2c2d30; border-right-color: #35373c; }
+  .apj-chip-name   { color: #f0f1f3; }
+  .apj-chip-size   { color: #5e6370; }
+  .apj-chip-amount { color: #2fa3e8; }
 }
