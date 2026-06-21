@@ -212,7 +212,10 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "getThumb")     return handleGetThumb(msg.messageId, msg.partName);
   if (msg?.type === "getPdfText")   return handleGetPdfText(msg.messageId, msg.partName);
   if (msg?.type === "getTagState")  return handleGetTagState(msg.messageId);
-  if (msg?.type === "markToProcess") return handleMarkToProcess(msg.messageId);
+  if (msg?.type === "markToProcess")  return handleMarkToProcess(msg.messageId);
+  if (msg?.type === "markSeen")       return handleMarkSeen(msg.messageId, msg.partName);
+  if (msg?.type === "getSeenStates")  return handleGetSeenStates(msg.messageId, msg.partNames);
+  if (msg?.type === "downloadAll")    return handleDownloadAll(msg.messageId);
   return undefined;
 });
 
@@ -478,6 +481,65 @@ async function handleMarkToProcess(messageId) {
     return { ok: true, tagged: !alreadyTagged };
   } catch (err) {
     console.error("[Aperçu PJ] markToProcess:", err);
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+// ---------- Historique d'ouverture des PJ ----------
+async function handleMarkSeen(messageId, partName) {
+  try {
+    const key = `apj_seen_${messageId}_${partName}`;
+    const s = await messenger.storage.local.get({ [key]: null });
+    if (!s[key]) await messenger.storage.local.set({ [key]: new Date().toISOString() });
+    return { ok: true };
+  } catch (_) { return { ok: false }; }
+}
+
+async function handleGetSeenStates(messageId, partNames) {
+  try {
+    const query = {};
+    partNames.forEach((p) => { query[`apj_seen_${messageId}_${p}`] = null; });
+    const result = await messenger.storage.local.get(query);
+    const seenAt = {};
+    partNames.forEach((p) => {
+      const v = result[`apj_seen_${messageId}_${p}`];
+      if (v) seenAt[p] = v;
+    });
+    return { ok: true, seenAt };
+  } catch (_) { return { ok: false, seenAt: {} }; }
+}
+
+// ---------- Télécharger toutes les PJ d'un message ----------
+async function handleDownloadAll(messageId) {
+  try {
+    let items = previewByMessage.get(messageId);
+    if (!items) {
+      const attachments = await messenger.messages.listAttachments(messageId);
+      items = collectPreviewable(attachments);
+    }
+    const results = [];
+    for (const item of items) {
+      try {
+        const file = await messenger.messages.getAttachmentFile(messageId, item.partName);
+        const buf = await file.arrayBuffer();
+        const blob = new Blob([buf], { type: item.contentType || "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const id = await messenger.downloads.download({ url, filename: item.name, saveAs: false });
+        const cleanup = () => { try { URL.revokeObjectURL(url); } catch (_) {} };
+        messenger.downloads.onChanged.addListener(function handler(delta) {
+          if (delta.id !== id) return;
+          if (delta.state?.current === "complete" || delta.state?.current === "interrupted") {
+            messenger.downloads.onChanged.removeListener(handler);
+            cleanup();
+          }
+        });
+        results.push({ partName: item.partName, ok: true });
+      } catch (e) {
+        results.push({ partName: item.partName, ok: false, error: String(e?.message) });
+      }
+    }
+    return { ok: true, count: results.filter((r) => r.ok).length };
+  } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }
 }

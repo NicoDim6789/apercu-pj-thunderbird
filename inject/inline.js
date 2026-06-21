@@ -19,6 +19,12 @@
     if (!items.length) return;
     if (document.getElementById("apj-inline-strip")) return; // guard async
 
+    // Charger les états "Vu" en une seule requête
+    const seenRes = await browser.runtime.sendMessage({
+      type: "getSeenStates", messageId, partNames: items.map((i) => i.partName),
+    }).catch(() => null);
+    const seenAt = seenRes?.seenAt || {};
+
     // ---- Utilitaires ----
     function formatSize(bytes) {
       if (!bytes) return "";
@@ -94,6 +100,26 @@
       toProcessBtn.disabled = false;
     });
     header.appendChild(toProcessBtn);
+
+    // Bouton "Tout télécharger" (uniquement si plusieurs PJ)
+    if (items.length > 1) {
+      const dlAllBtn = document.createElement("button");
+      dlAllBtn.type = "button";
+      dlAllBtn.className = "apj-to-process-btn";
+      dlAllBtn.style.marginLeft = "6px";
+      dlAllBtn.title = "Télécharger toutes les pièces jointes";
+      dlAllBtn.textContent = "📥 Tout";
+      dlAllBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        dlAllBtn.disabled = true;
+        dlAllBtn.textContent = "📥 En cours…";
+        const r = await browser.runtime.sendMessage({ type: "downloadAll", messageId }).catch(() => null);
+        dlAllBtn.textContent = r?.ok ? `📥 ${r.count} téléchargé${r.count > 1 ? "s" : ""}` : "📥 Erreur";
+        setTimeout(() => { dlAllBtn.textContent = "📥 Tout"; dlAllBtn.disabled = false; }, 3000);
+      });
+      header.appendChild(dlAllBtn);
+    }
+
     strip.appendChild(header);
 
     // Rangée de chips
@@ -130,6 +156,19 @@
       sizeEl.textContent = formatSize(item.size);
       infoDiv.appendChild(sizeEl);
 
+      // Badge "Nouveau" ou "Vu le JJ/MM"
+      const seenEl = document.createElement("div");
+      seenEl.className = "apj-chip-seen";
+      if (seenAt[item.partName]) {
+        const d = new Date(seenAt[item.partName]);
+        seenEl.textContent = `Vu le ${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}`;
+        seenEl.style.cssText = "font-size:10.5px;color:#a19f9d;margin-top:2px;";
+      } else {
+        seenEl.textContent = "✦ Nouveau";
+        seenEl.style.cssText = "font-size:10.5px;font-weight:700;color:#0078d4;margin-top:2px;";
+      }
+      infoDiv.appendChild(seenEl);
+
       const amountEl = document.createElement("div");
       amountEl.className = "apj-chip-amount";
       amountEl.hidden = true;
@@ -138,6 +177,12 @@
       chip.appendChild(infoDiv);
 
       chip.addEventListener("click", () => {
+        // Marquer comme vu et ouvrir le viewer
+        browser.runtime.sendMessage({ type: "markSeen", messageId, partName: item.partName }).catch(() => {});
+        if (!seenAt[item.partName]) {
+          seenEl.textContent = "Vu le " + new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+          seenEl.style.cssText = "font-size:10.5px;color:#a19f9d;margin-top:2px;";
+        }
         browser.runtime.sendMessage({ type: "openViewer", messageId, part: item.partName });
       });
 

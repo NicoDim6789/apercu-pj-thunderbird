@@ -25,6 +25,7 @@ import "./toolbar/actions/saveas.js";
 import "./toolbar/actions/open-external.js";
 import "./toolbar/actions/forward.js";
 import "./toolbar/actions/copy-text.js";
+import "./toolbar/actions/save-page.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
@@ -152,6 +153,9 @@ eventBus.on("pagechanging", (evt) => {
   el.pageInput.value = String(evt.pageNumber);
   highlightThumb(evt.pageNumber);
   updateNavButtons();
+  // Indicateur de page dans le titre de la fenêtre
+  const item = state.activeIndex >= 0 ? state.items[state.activeIndex] : null;
+  if (item) document.title = `Aperçu PJ — ${item.name} (${evt.pageNumber} / ${pdfViewer.pagesCount})`;
 });
 
 eventBus.on("scalechanging", () => {
@@ -694,6 +698,13 @@ window.addEventListener("keydown", (e) => {
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
     e.preventDefault(); openFind(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+    e.preventDefault();
+    const saveAs = toolbar.list().find((a) => a.id === "save-as");
+    const ctx = buildCtx();
+    if (saveAs?.isAvailable(ctx)) saveAs.handler(ctx).catch(() => {});
+    return;
   }
   if (e.key === "Escape") {
     if (!el.cmdPalette.hidden) { closeCmdPalette(); return; }
