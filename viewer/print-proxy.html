@@ -5,8 +5,8 @@
 <title>Impression — Aperçu PJ</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #fff; }
-#status { padding: 20px; font-family: sans-serif; color: #555; font-size: 14px; }
+body { background: #fff; font-family: sans-serif; }
+#status { padding: 20px; color: #555; font-size: 14px; }
 .page { display: block; width: 100%; }
 .page img { width: 100%; height: auto; display: block; }
 @media print {
@@ -19,53 +19,78 @@ body { background: #fff; }
 <body>
 <div id="status">Préparation de l'impression…</div>
 <script type="module">
-const key  = new URLSearchParams(location.search).get("k");
+const KEY = new URLSearchParams(location.search).get("k");
 const status = document.getElementById("status");
 
-if (!key) {
+if (!KEY) {
   status.textContent = "Erreur : paramètre manquant.";
 } else {
-  const storeKey = "apj_print_" + key;
-  let res;
-  try { res = await browser.storage.local.get({ [storeKey]: null }); }
-  catch (_) { res = {}; }
-  const pages = res[storeKey];
-  browser.storage.local.remove(storeKey).catch(() => {});
+  try {
+    const storeKey = "apj_print_" + KEY;
+    const res = await browser.storage.local.get({ [storeKey]: null });
+    const pages = res[storeKey];
+    browser.storage.local.remove(storeKey).catch(() => {});
 
-  if (!pages?.length) {
-    status.textContent = "Données d'impression introuvables — fermez cette fenêtre.";
-  } else {
-    status.remove();
-    const frag = document.createDocumentFragment();
-    for (const dataUrl of pages) {
-      const div = document.createElement("div");
-      div.className = "page";
-      const img = new Image();
-      img.src = dataUrl;
-      div.appendChild(img);
-      frag.appendChild(div);
-    }
-    document.body.appendChild(frag);
-
-    // Attendre que toutes les images soient chargées avant d'imprimer.
-    const imgs = [...document.querySelectorAll("img")];
-    let pending = imgs.filter(i => !i.complete).length;
-    function tryPrint() {
-      if (pending <= 0) setTimeout(() => window.print(), 200);
-    }
-    if (pending === 0) {
-      tryPrint();
+    if (!pages?.length) {
+      status.textContent = "Données introuvables — réessayez en cliquant sur Imprimer.";
     } else {
-      imgs.forEach(img => {
-        if (!img.complete) {
-          img.addEventListener("load",  () => { pending--; tryPrint(); }, { once: true });
-          img.addEventListener("error", () => { pending--; tryPrint(); }, { once: true });
-        }
-      });
-    }
+      status.remove();
 
-    // Fermer automatiquement après impression (ou annulation).
-    window.addEventListener("afterprint", () => setTimeout(() => window.close(), 400));
+      // Injecter les pages comme images
+      const frag = document.createDocumentFragment();
+      for (const dataUrl of pages) {
+        const div = document.createElement("div");
+        div.className = "page";
+        const img = new Image();
+        img.src = dataUrl;
+        div.appendChild(img);
+        frag.appendChild(div);
+      }
+      document.body.appendChild(frag);
+
+      // Attendre que les images soient chargées (max 6 s)
+      const imgs = [...document.querySelectorAll("img")];
+      let pending = imgs.filter(i => !i.complete).length;
+
+      async function doPrint() {
+        // Méthode 1 : via background (messenger.tabs.print sur la fenêtre proxy focalisée)
+        try {
+          const win = await browser.windows.getCurrent();
+          const res = await browser.runtime.sendMessage({
+            type: "printProxyWindow",
+            windowId: win.id,
+          });
+          if (res?.ok) return;
+        } catch (_) {}
+        // Méthode 2 : fallback direct
+        try { window.print(); } catch (_) {}
+      }
+
+      function tryPrint() {
+        if (pending <= 0) setTimeout(doPrint, 150);
+      }
+
+      if (pending === 0) {
+        tryPrint();
+      } else {
+        // Timeout de sécurité : on lance quand même après 6 s
+        const timer = setTimeout(() => { pending = 0; tryPrint(); }, 6000);
+        imgs.forEach(img => {
+          if (!img.complete) {
+            const done = () => {
+              pending--;
+              if (pending <= 0) { clearTimeout(timer); tryPrint(); }
+            };
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          }
+        });
+      }
+
+      window.addEventListener("afterprint", () => setTimeout(() => window.close(), 500));
+    }
+  } catch (err) {
+    status.textContent = "Erreur : " + (err?.message || err);
   }
 }
 </script>

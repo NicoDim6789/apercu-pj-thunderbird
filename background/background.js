@@ -216,7 +216,8 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "markSeen")       return handleMarkSeen(msg.messageId, msg.partName);
   if (msg?.type === "getSeenStates")  return handleGetSeenStates(msg.messageId, msg.partNames);
   if (msg?.type === "downloadAll")    return handleDownloadAll(msg.messageId, msg.partNames);
-  if (msg?.type === "openDownload")   return handleOpenDownload(msg.downloadId);
+  if (msg?.type === "openDownload")      return handleOpenDownload(msg.downloadId);
+  if (msg?.type === "printProxyWindow") return handlePrintProxyWindow(msg.windowId);
   return undefined;
 });
 
@@ -508,6 +509,25 @@ async function handleGetSeenStates(messageId, partNames) {
     });
     return { ok: true, seenAt };
   } catch (_) { return { ok: false, seenAt: {} }; }
+}
+
+// ---------- Impression via messenger.tabs.print() depuis le background ----------
+// window.print() dans un popup extension TB n'ouvre pas la boîte d'impression.
+// Seul messenger.tabs.print() (background context) déclenche le vrai dialogue OS.
+// La proxy window envoie son windowId ; on la focalise avant d'appeler tabs.print()
+// pour que "active tab" pointe bien sur la proxy (pas sur la fenêtre mail).
+async function handlePrintProxyWindow(windowId) {
+  try {
+    if (Number.isFinite(windowId)) {
+      await messenger.windows.update(windowId, { focused: true });
+      // Laisser le focus s'établir avant d'imprimer
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    await messenger.tabs.print();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
 }
 
 // ---------- Ouvrir un fichier téléchargé dans l'app OS par défaut ----------

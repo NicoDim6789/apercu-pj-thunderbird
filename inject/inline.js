@@ -19,11 +19,15 @@
     if (!items.length) return;
     if (document.getElementById("apj-inline-strip")) return; // guard async
 
-    // Filtrer : si le message contient des PDFs, n'afficher que ceux-ci dans le strip.
-    // Les images sont souvent des logos ou signatures du corps du mail (TB n'expose pas
-    // content-disposition, on ne peut pas les distinguer autrement).
+    // Filtrer les pièces jointes affichées dans le strip :
+    // 1. Si le message contient des PDFs → afficher seulement les PDFs (les images
+    //    sont quasi-toujours des logos/signatures du corps du mail).
+    // 2. Si le message n'a que des images → masquer celles < 30 Ko (logos de signature).
+    //    TB n'expose pas content-disposition, c'est la seule heuristique disponible.
     const hasPdf = items.some(i => i.kind === "pdf");
-    const displayItems = hasPdf ? items.filter(i => i.kind === "pdf") : items;
+    const displayItems = hasPdf
+      ? items.filter(i => i.kind === "pdf")
+      : items.filter(i => i.kind !== "image" || i.size >= 30720);
 
     // Charger les états "Vu" en une seule requête (seulement pour les items affichés)
     const seenRes = await browser.runtime.sendMessage({
