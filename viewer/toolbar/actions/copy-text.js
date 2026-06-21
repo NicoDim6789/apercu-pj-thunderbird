@@ -7,23 +7,26 @@ toolbar.register({
   label: "📋 Copier le texte",
   order: 15,
   isAvailable: ({ pdf }) => !!pdf,
-  handler: async ({ viewer }) => {
-    if (!viewer?.pdfDocument) return;
-    const page = await viewer.pdfDocument.getPage(viewer.currentPageNumber);
+  handler: async ({ pdfDoc, viewer }) => {
+    if (!pdfDoc) return;
+    const page = await pdfDoc.getPage(viewer.currentPageNumber);
     const content = await page.getTextContent();
     const text = content.items.map((item) => item.str).join(" ").trim();
+
+    const btn = document.querySelector('[data-action-id="copy-text"]');
+    const prevHTML = btn?.innerHTML;
+
     if (!text) {
-      // Pas de texte extractible (PDF scanné sans OCR)
-      const btn = document.querySelector('[data-action-id="copy-text"]');
-      if (btn) { const o = btn.textContent; btn.textContent = "⚠ Pas de texte"; setTimeout(() => { btn.textContent = o; }, 2500); }
+      if (btn) {
+        btn.innerHTML = `<span class="tb-act-icon">⚠</span><span class="tb-act-label">Pas de texte</span>`;
+        setTimeout(() => { if (btn) btn.innerHTML = prevHTML; }, 2500);
+      }
       return;
     }
     await navigator.clipboard.writeText(text);
-    const btn = document.querySelector('[data-action-id="copy-text"]');
     if (btn) {
-      const orig = btn.textContent;
-      btn.textContent = "✓ Copié !";
-      setTimeout(() => { btn.textContent = orig; }, 2000);
+      btn.innerHTML = `<span class="tb-act-icon">✓</span><span class="tb-act-label">Copié !</span>`;
+      setTimeout(() => { if (btn) btn.innerHTML = prevHTML; }, 2000);
     }
   },
 });

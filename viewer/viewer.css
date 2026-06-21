@@ -346,7 +346,7 @@ html, body {
 /* Boutons d'actions du registre (Imprimer, Télécharger, etc.) */
 #toolbar-actions button {
   width: auto !important;
-  padding: 0 12px !important;
+  padding: 0 9px !important;
   height: 30px !important;
   font-size: 12.5px !important;
   font-weight: 500;
@@ -365,6 +365,10 @@ html, body {
 #toolbar-actions button:active:not(:disabled) {
   background: var(--apj-accent-mid) !important;
 }
+
+/* Icône + label dans les boutons d'actions */
+.tb-act-icon  { font-size: 13px; flex-shrink: 0; line-height: 1; }
+.tb-act-label { font-size: 11.5px; letter-spacing: 0.1px; }
 
 /* ========== Barre de recherche (A3) ========== */
 #findbar {

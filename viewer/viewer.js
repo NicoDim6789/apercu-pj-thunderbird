@@ -730,7 +730,9 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// ---------- Sauvegarde de la géométrie de la fenêtre (inchangé) ----------
+// ---------- Sauvegarde de la géométrie de la fenêtre ----------
+// Sauvegarde directement dans storage.local (pas via background) pour fiabilité.
+// Le background lit windowGeom au moment d'ouvrir la prochaine fenêtre.
 function saveGeometry() {
   const geom = {
     left: window.screenX,
@@ -738,8 +740,16 @@ function saveGeometry() {
     width: window.outerWidth,
     height: window.outerHeight,
   };
-  try { browser.runtime.sendMessage({ type: "saveGeometry", geom }); } catch (_) {}
+  try { browser.storage.local.set({ windowGeom: geom }); } catch (_) {}
 }
+
+// Debounce sur resize : sauvegarde 600 ms après la dernière modification.
+let _geoTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(_geoTimer);
+  _geoTimer = setTimeout(saveGeometry, 600);
+});
+
 window.addEventListener("beforeunload", () => {
   releaseImage();
   // Révoquer les objectURLs des vignettes de la liste (images seulement — les

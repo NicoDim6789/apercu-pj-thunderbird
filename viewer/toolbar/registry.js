@@ -1,17 +1,19 @@
 // registry.js — registre d'actions de la toolbar
 //
-// Contrat figé (cf. CLAUDE.md) :
-//   {
-//     id, label, icon, order,
-//     isAvailable: ({pdf, message}) => boolean,
-//     handler: async ({pdfBlob, pdfName, message}) => void
-//   }
+// Contrat de chaque action :
+//   { id, label, order, isAvailable: (ctx) => bool, handler: async (ctx) => void }
 //
-// Phase 1 : seul 'print' est enregistré (stub désactivé).
-// Phase 1bis : print branchera le native messaging vers SumatraPDF.
-// Phase 2 : 'archive-chantier' + 'send-ccm' s'ajouteront ici sans toucher au viewer.
+// label peut commencer par un emoji/symbole : "🖨 Imprimer"
+// Le render extrait l'icône et le premier mot pour un bouton compact.
 
 const actions = new Map();
+
+// Extrait [icône, premierMot] du label "🖨 Imprimer" → ["🖨", "Imprimer"]
+function splitLabel(label) {
+  const m = label.match(/^([^\w\s]{1,2})\s*(\S+)/u);
+  if (m) return [m[1], m[2].replace(/[….]$/, "")];  // supprime "…" final
+  return [null, label];
+}
 
 export const toolbar = {
   register(action) {
@@ -26,17 +28,15 @@ export const toolbar = {
     });
   },
 
-  unregister(id) {
-    actions.delete(id);
-  },
+  unregister(id) { actions.delete(id); },
 
   list() {
     return [...actions.values()].sort((a, b) => a.order - b.order);
   },
 
   /**
-   * Rendu de la toolbar dans le conteneur fourni.
-   * Re-rendu à chaque changement de PDF actif pour évaluer isAvailable.
+   * Rendu compact : icône + premier mot du label.
+   * Tooltip = label complet. Re-rendu à chaque changement de PDF actif.
    */
   render(container, ctx) {
     container.innerHTML = "";
@@ -47,15 +47,33 @@ export const toolbar = {
 
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.title = action.label;
+      btn.title = action.label;      // tooltip = label complet
       btn.dataset.actionId = action.id;
-      btn.textContent = action.label;
+
+      const [icon, word] = splitLabel(action.label);
+      if (icon) {
+        const iconEl = document.createElement("span");
+        iconEl.className = "tb-act-icon";
+        iconEl.setAttribute("aria-hidden", "true");
+        iconEl.textContent = icon;
+        btn.appendChild(iconEl);
+      }
+      const textEl = document.createElement("span");
+      textEl.className = "tb-act-label";
+      textEl.textContent = word || action.label;
+      btn.appendChild(textEl);
+
       btn.addEventListener("click", async () => {
         btn.disabled = true;
+        const prevHTML = btn.innerHTML;
         try {
           await action.handler(ctx);
         } catch (err) {
           console.error(`[Aperçu PJ] action ${action.id}:`, err);
+          // Feedback erreur rapide
+          btn.innerHTML = `<span class="tb-act-icon">⚠</span><span class="tb-act-label">Erreur</span>`;
+          await new Promise((r) => setTimeout(r, 2200));
+          btn.innerHTML = prevHTML;
         } finally {
           btn.disabled = false;
         }
