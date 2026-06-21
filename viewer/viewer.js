@@ -23,8 +23,6 @@ import "./toolbar/actions/print.js";
 import "./toolbar/actions/saveas.js";
 import "./toolbar/actions/open-external.js";
 import "./toolbar/actions/forward.js";
-import "./toolbar/actions/copy-text.js";
-import "./toolbar/actions/save-page.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
