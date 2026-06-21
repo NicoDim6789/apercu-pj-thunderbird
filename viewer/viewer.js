@@ -20,7 +20,6 @@ import {
 } from "../vendor/pdfjs/web/pdf_viewer.mjs";
 import { toolbar } from "./toolbar/registry.js";
 import "./toolbar/actions/print.js";
-import "./toolbar/actions/download.js";
 import "./toolbar/actions/saveas.js";
 import "./toolbar/actions/open-external.js";
 import "./toolbar/actions/forward.js";

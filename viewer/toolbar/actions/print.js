@@ -10,7 +10,7 @@ toolbar.register({
   id: "print",
   label: "🖨 Imprimer",
   order: 10,
-  isAvailable: ({ pdf }) => !!pdf,
+  isAvailable: ({ item }) => !!item,
   handler: () =>
     new Promise((resolve) => {
       setTimeout(() => {

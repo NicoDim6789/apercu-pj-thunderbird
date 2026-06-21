@@ -215,7 +215,8 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
   if (msg?.type === "markToProcess")  return handleMarkToProcess(msg.messageId);
   if (msg?.type === "markSeen")       return handleMarkSeen(msg.messageId, msg.partName);
   if (msg?.type === "getSeenStates")  return handleGetSeenStates(msg.messageId, msg.partNames);
-  if (msg?.type === "downloadAll")    return handleDownloadAll(msg.messageId);
+  if (msg?.type === "downloadAll")    return handleDownloadAll(msg.messageId, msg.partNames);
+  if (msg?.type === "openDownload")   return handleOpenDownload(msg.downloadId);
   return undefined;
 });
 
@@ -509,16 +510,36 @@ async function handleGetSeenStates(messageId, partNames) {
   } catch (_) { return { ok: false, seenAt: {} }; }
 }
 
+// ---------- Ouvrir un fichier téléchargé dans l'app OS par défaut ----------
+// Appelé depuis le viewer popup (downloads.open() fonctionne mieux depuis le background).
+// Fallback vers downloads.show() (ouvre le dossier avec le fichier sélectionné) si open() échoue.
+async function handleOpenDownload(downloadId) {
+  try {
+    await messenger.downloads.open(downloadId);
+    return { ok: true };
+  } catch (_) {
+    try {
+      await messenger.downloads.show(downloadId);
+      return { ok: true, method: "show" };
+    } catch (e2) {
+      return { ok: false, error: String(e2?.message || e2) };
+    }
+  }
+}
+
 // ---------- Télécharger toutes les PJ d'un message ----------
-async function handleDownloadAll(messageId) {
+// partNames : liste optionnelle ; si fournie, seules ces PJ sont téléchargées
+// (utilisé par le strip inline qui peut filtrer les images du corps du mail).
+async function handleDownloadAll(messageId, partNames) {
   try {
     let items = previewByMessage.get(messageId);
     if (!items) {
       const attachments = await messenger.messages.listAttachments(messageId);
       items = collectPreviewable(attachments);
     }
+    const toDownload = partNames?.length ? items.filter(i => partNames.includes(i.partName)) : items;
     const results = [];
-    for (const item of items) {
+    for (const item of toDownload) {
       try {
         const file = await messenger.messages.getAttachmentFile(messageId, item.partName);
         const buf = await file.arrayBuffer();

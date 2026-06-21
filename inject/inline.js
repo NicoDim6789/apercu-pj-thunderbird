@@ -19,9 +19,15 @@
     if (!items.length) return;
     if (document.getElementById("apj-inline-strip")) return; // guard async
 
-    // Charger les états "Vu" en une seule requête
+    // Filtrer : si le message contient des PDFs, n'afficher que ceux-ci dans le strip.
+    // Les images sont souvent des logos ou signatures du corps du mail (TB n'expose pas
+    // content-disposition, on ne peut pas les distinguer autrement).
+    const hasPdf = items.some(i => i.kind === "pdf");
+    const displayItems = hasPdf ? items.filter(i => i.kind === "pdf") : items;
+
+    // Charger les états "Vu" en une seule requête (seulement pour les items affichés)
     const seenRes = await browser.runtime.sendMessage({
-      type: "getSeenStates", messageId, partNames: items.map((i) => i.partName),
+      type: "getSeenStates", messageId, partNames: displayItems.map((i) => i.partName),
     }).catch(() => null);
     const seenAt = seenRes?.seenAt || {};
 
@@ -67,7 +73,9 @@
 
     const countSpan = document.createElement("span");
     countSpan.className = "apj-strip-count";
-    countSpan.textContent = `(${items.length})`;
+    countSpan.textContent = displayItems.length < items.length
+      ? `(${displayItems.length} sur ${items.length})`
+      : `(${items.length})`;
     header.appendChild(countSpan);
 
     // Bouton "À traiter" — toggle du tag TB
@@ -101,19 +109,23 @@
     });
     header.appendChild(toProcessBtn);
 
-    // Bouton "Tout télécharger" (uniquement si plusieurs PJ)
-    if (items.length > 1) {
+    // Bouton "Tout télécharger" (uniquement si plusieurs items affichés)
+    if (displayItems.length > 1) {
       const dlAllBtn = document.createElement("button");
       dlAllBtn.type = "button";
       dlAllBtn.className = "apj-to-process-btn";
       dlAllBtn.style.marginLeft = "6px";
-      dlAllBtn.title = "Télécharger toutes les pièces jointes";
+      dlAllBtn.title = "Télécharger toutes les pièces jointes affichées";
       dlAllBtn.textContent = "📥 Tout";
       dlAllBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         dlAllBtn.disabled = true;
         dlAllBtn.textContent = "📥 En cours…";
-        const r = await browser.runtime.sendMessage({ type: "downloadAll", messageId }).catch(() => null);
+        const r = await browser.runtime.sendMessage({
+          type: "downloadAll",
+          messageId,
+          partNames: displayItems.map(i => i.partName),
+        }).catch(() => null);
         dlAllBtn.textContent = r?.ok ? `📥 ${r.count} téléchargé${r.count > 1 ? "s" : ""}` : "📥 Erreur";
         setTimeout(() => { dlAllBtn.textContent = "📥 Tout"; dlAllBtn.disabled = false; }, 3000);
       });
@@ -126,7 +138,7 @@
     const chipsRow = document.createElement("div");
     chipsRow.className = "apj-strip-chips";
 
-    items.forEach((item) => {
+    displayItems.forEach((item) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "apj-chip";
