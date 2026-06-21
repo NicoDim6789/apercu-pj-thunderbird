@@ -47,6 +47,7 @@
         <div id="toolbar-actions">
           <!-- Boutons via le registre d'actions (print, et plus tard download, archive, ccm…) -->
         </div>
+        <button type="button" id="btn-cmd-palette" title="Palette de commandes (Ctrl+K)">⌘ Commandes</button>
       </div>
 
       <!-- Barre de recherche dans le PDF (A3) — masquée par défaut -->
@@ -74,6 +75,18 @@
         <div id="error" hidden></div>
       </div>
     </main>
+  </div>
+
+  <!-- Palette de commandes (Ctrl+K) -->
+  <div id="cmd-palette" hidden>
+    <div id="cmd-backdrop"></div>
+    <div id="cmd-dialog" role="dialog" aria-modal="true" aria-label="Palette de commandes">
+      <div id="cmd-search-wrapper">
+        <span id="cmd-search-icon">⌘</span>
+        <input type="text" id="cmd-input" placeholder="Taper une commande…" autocomplete="off" spellcheck="false">
+      </div>
+      <ul id="cmd-list" role="listbox"></ul>
+    </div>
   </div>
 
   <script type="module" src="viewer.js"></script>

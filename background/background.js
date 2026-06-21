@@ -90,9 +90,17 @@ const previewByMessage = new Map();
 // Dernier message unique affiché (pour que le popup sache de quoi parler).
 let lastMessageId = null;
 
-// Cache des vignettes du popup : `${messageId}:${partName}` → dataURL.
+// Cache des vignettes : `${messageId}:${partName}` → dataURL.
 const thumbCache = new Map();
 const thumbKey = (messageId, partName) => `${messageId}:${partName}`;
+
+// Cache du texte extrait des PDF (1res pages) pour la détection de montants.
+const textCache = new Map();
+
+// Tag TB « À traiter »
+const APJ_TAG_KEY   = "apj-a-traiter";
+const APJ_TAG_NAME  = "À traiter";
+const APJ_TAG_COLOR = "#FF8C00";
 
 // C3 : messages déjà auto-ouverts (anti-réouverture).
 const autoOpened = new Set();
@@ -201,7 +209,10 @@ messenger.runtime.onMessage.addListener((msg, _sender) => {
       .then((r) => ({ ok: true, messageId: r.currentMessageId }));
   }
   if (msg?.type === "openViewer") return openViewerFromPopup(msg.messageId, msg.part);
-  if (msg?.type === "getThumb") return handleGetThumb(msg.messageId, msg.partName);
+  if (msg?.type === "getThumb")     return handleGetThumb(msg.messageId, msg.partName);
+  if (msg?.type === "getPdfText")   return handleGetPdfText(msg.messageId, msg.partName);
+  if (msg?.type === "getTagState")  return handleGetTagState(msg.messageId);
+  if (msg?.type === "markToProcess") return handleMarkToProcess(msg.messageId);
   return undefined;
 });
 
@@ -400,6 +411,74 @@ async function pdfBufferToDataUrl(buf) {
     return c.toDataURL("image/jpeg", 0.72);
   } finally {
     try { doc.destroy(); } catch (_) { /* PDF.js v6 : pas de doc.destroy() → GC */ }
+  }
+}
+
+// ---------- Extraction de texte PDF (pour détection montant dans la barre inline) ----------
+async function handleGetPdfText(messageId, partName) {
+  try {
+    const key = thumbKey(messageId, partName) + ":text";
+    if (textCache.has(key)) return { ok: true, text: textCache.get(key) };
+
+    const file = await messenger.messages.getAttachmentFile(messageId, partName);
+    const buf = await file.arrayBuffer();
+    const pdfjsLib = await getPdfjs();
+    const doc = await pdfjsLib.getDocument({
+      data: new Uint8Array(buf),
+      cMapUrl: APJ_CMAP_URL,
+      cMapPacked: true,
+      standardFontDataUrl: APJ_STD_FONT_URL,
+    }).promise;
+    try {
+      let text = "";
+      const maxPages = Math.min(doc.numPages, 4); // 4 pages max
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((item) => item.str).join(" ") + "\n";
+      }
+      textCache.set(key, text);
+      return { ok: true, text };
+    } finally {
+      try { doc.destroy(); } catch (_) {}
+    }
+  } catch (err) {
+    console.error("[Aperçu PJ] getPdfText:", err);
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+// ---------- Tag « À traiter » ----------
+async function ensureApjTag() {
+  const tags = await messenger.messages.listTags();
+  if (!tags.find((t) => t.key === APJ_TAG_KEY)) {
+    await messenger.messages.createTag(APJ_TAG_KEY, APJ_TAG_NAME, APJ_TAG_COLOR);
+  }
+}
+
+async function handleGetTagState(messageId) {
+  try {
+    const msg = await messenger.messages.get(messageId);
+    return { ok: true, tagged: (msg.tags || []).includes(APJ_TAG_KEY) };
+  } catch (err) {
+    return { ok: false, tagged: false };
+  }
+}
+
+async function handleMarkToProcess(messageId) {
+  try {
+    await ensureApjTag();
+    const msg = await messenger.messages.get(messageId);
+    const current = msg.tags || [];
+    const alreadyTagged = current.includes(APJ_TAG_KEY);
+    const newTags = alreadyTagged
+      ? current.filter((t) => t !== APJ_TAG_KEY)
+      : [...current, APJ_TAG_KEY];
+    await messenger.messages.update(messageId, { tags: newTags });
+    return { ok: true, tagged: !alreadyTagged };
+  } catch (err) {
+    console.error("[Aperçu PJ] markToProcess:", err);
+    return { ok: false, error: String(err?.message || err) };
   }
 }
 

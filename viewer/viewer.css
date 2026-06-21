@@ -1,211 +1,315 @@
-/* viewer.css — UI de l'aperçu (v0.3+, viewer = composants PDF.js) */
+/* viewer.css — Aperçu PJ, esthétique Outlook / Fluent Design */
 
-/* CRITIQUE : nos sélecteurs #id posent display:flex, ce qui écrase l'attribut
-   [hidden] (UA = display:none, spécificité plus faible). Sans cette règle,
-   #image-view et #findbar restent visibles et recouvrent le PDF. */
+/* CRITIQUE : display:flex sur #id écrase [hidden] (UA display:none plus faible). */
 [hidden] { display: none !important; }
 
+/* ========== Palette Outlook / Microsoft 365 ========== */
 :root {
-  --apj-bg: #fafafa;
-  --apj-fg: #222;
-  --apj-border: #d0d0d0;
-  --apj-list-bg: #f0f0f0;
-  --apj-list-item-hover: #e2e2e2;
-  --apj-list-item-active: #d1e3ff;
-  --apj-toolbar-bg: #ececec;
-  --apj-btn-hover: #dcdcdc;
-  --apj-accent: #2d4a73;
+  --apj-accent:          #0078d4;   /* Bleu Outlook */
+  --apj-accent-hover:    #106ebe;
+  --apj-accent-light:    #deecf9;   /* Sélection bleue douce */
+  --apj-bg:              #ffffff;
+  --apj-canvas:          #f5f5f5;   /* Fond panneaux (Office canvas) */
+  --apj-border:          #edebe9;
+  --apj-border-mid:      #d2d0ce;
+  --apj-fg:              #201f1e;
+  --apj-fg-2:            #605e5c;   /* Texte secondaire */
+  --apj-hover:           #f3f2f1;
+  --apj-active-bg:       #deecf9;
+  --apj-btn-hover:       #f3f2f1;
+  --apj-btn-active:      #edebe9;
+  --apj-render-bg:       #525659;   /* Fond gris PDF standard (comme Acrobat) */
+  --apj-danger:          #d13438;
+  --apj-success:         #107c10;
+  --apj-shadow-sm:       0 1px 4px rgba(0,0,0,0.14);
+  --apj-shadow-md:       0 4px 16px rgba(0,0,0,0.18);
+  --apj-radius:          4px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --apj-bg: #1f1f1f;
-    --apj-fg: #e8e8e8;
-    --apj-border: #3a3a3a;
-    --apj-list-bg: #252525;
-    --apj-list-item-hover: #333;
-    --apj-list-item-active: #2d4a73;
-    --apj-toolbar-bg: #2a2a2a;
-    --apj-btn-hover: #383838;
-    --apj-accent: #5b8dd6;
+    --apj-accent:          #2899f5;
+    --apj-accent-hover:    #3aa0f3;
+    --apj-accent-light:    #0f3d66;
+    --apj-bg:              #1b1a19;
+    --apj-canvas:          #252423;
+    --apj-border:          #3b3a39;
+    --apj-border-mid:      #484644;
+    --apj-fg:              #f3f2f1;
+    --apj-fg-2:            #a19f9d;
+    --apj-hover:           #2b2a29;
+    --apj-active-bg:       #0f3d66;
+    --apj-btn-hover:       #2b2a29;
+    --apj-btn-active:      #3b3a39;
+    --apj-render-bg:       #1b1a19;
   }
 }
 
 html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
+  margin: 0; padding: 0; height: 100%;
   background: var(--apj-bg);
   color: var(--apj-fg);
-  font-family: system-ui, -moz-default, sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 13px;
+  line-height: 1.4;
 }
 
-#root {
-  display: flex;
-  height: 100vh;
-  width: 100%;
-}
+#root { display: flex; height: 100vh; width: 100%; overflow: hidden; }
 
-/* ---------- Liste des pièces jointes ---------- */
+/* ========== Liste des PJ (panneau gauche) ========== */
 #pdf-list {
   width: 220px;
   min-width: 180px;
-  background: var(--apj-list-bg);
+  background: var(--apj-canvas);
   border-right: 1px solid var(--apj-border);
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .pdf-list-item {
   display: flex;
-  gap: 8px;
+  gap: 9px;
   align-items: flex-start;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--apj-border);
+  border-left: 3px solid transparent;
   cursor: pointer;
-  line-height: 1.3;
+  transition: background 0.1s, border-color 0.1s;
+  outline: none;
 }
-.pdf-list-item:hover { background: var(--apj-list-item-hover); }
-.pdf-list-item.active { background: var(--apj-list-item-active); }
-.pdf-list-item.active .li-name { font-weight: 600; }
+.pdf-list-item:hover  { background: var(--apj-hover); }
+.pdf-list-item:focus  { outline: 2px solid var(--apj-accent); outline-offset: -2px; }
+.pdf-list-item.active {
+  background: var(--apj-active-bg);
+  border-left-color: var(--apj-accent);
+}
+.pdf-list-item.active .li-name { font-weight: 600; color: var(--apj-accent); }
 
 .li-thumb {
   flex: 0 0 auto;
-  width: 44px;
-  height: 56px;
+  width: 40px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
-  border: 1px solid var(--apj-border);
-  border-radius: 3px;
+  border: 1px solid var(--apj-border-mid);
+  border-radius: 2px;
   overflow: hidden;
   font-size: 18px;
 }
-.li-thumb img { max-width: 100%; max-height: 100%; display: block; }
+.li-thumb img { max-width: 100%; max-height: 100%; display: block; object-fit: cover; }
 
-.li-info { min-width: 0; }
-.li-name { word-break: break-word; }
-.pdf-list-item .size { display: block; font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.li-info { min-width: 0; flex: 1; }
+.li-name {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--apj-fg);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.pdf-list-item .size {
+  display: block;
+  font-size: 11px;
+  color: var(--apj-fg-2);
+  margin-top: 3px;
+}
 
-/* Si une seule pièce jointe, on masque la liste pour gagner de la place */
 #root.single-item #pdf-list { display: none; }
 
-/* ---------- Rail de vignettes (A2) ---------- */
+/* ========== Rail de vignettes ========== */
 #thumb-rail {
-  width: 148px;
-  min-width: 148px;
-  background: var(--apj-list-bg);
+  width: 128px;
+  min-width: 128px;
+  background: var(--apj-canvas);
   border-right: 1px solid var(--apj-border);
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 6px;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 .thumb {
   display: block;
   width: 100%;
   margin: 0 0 10px;
-  padding: 0;
+  padding: 2px;
   cursor: pointer;
   border: 2px solid transparent;
-  border-radius: 3px;
+  border-radius: var(--apj-radius);
   background: transparent;
+  transition: border-color 0.12s;
 }
 .thumb canvas {
   display: block;
   width: 100%;
   height: auto;
   background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  box-shadow: var(--apj-shadow-sm);
+  border-radius: 2px;
 }
-.thumb .num { display: block; text-align: center; font-size: 11px; opacity: 0.7; margin-top: 2px; }
-.thumb.active { border-color: var(--apj-accent); }
-.thumb.active .num { opacity: 1; font-weight: 600; }
-
-/* ---------- Main ---------- */
-#main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.thumb .num {
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--apj-fg-2);
+  margin-top: 3px;
 }
+.thumb:hover       { border-color: var(--apj-border-mid); }
+.thumb.active      { border-color: var(--apj-accent); }
+.thumb.active .num { color: var(--apj-accent); font-weight: 700; }
 
+/* ========== Zone principale ========== */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* ========== Toolbar ========== */
 #toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 6px 10px;
-  background: var(--apj-toolbar-bg);
+  padding: 0 8px;
+  height: 44px;
+  min-height: 44px;
+  background: var(--apj-bg);
   border-bottom: 1px solid var(--apj-border);
-  flex-wrap: wrap;
+  gap: 2px;
+  flex-shrink: 0;
 }
-#toolbar > div { display: flex; align-items: center; gap: 6px; }
-#toolbar-actions { margin-left: auto; }
+#toolbar > div { display: flex; align-items: center; gap: 2px; }
 
-#toolbar button, #zoom-select, #page-input {
+/* Séparateurs entre groupes */
+#toolbar-nav  { padding-right: 6px; border-right: 1px solid var(--apj-border-mid); margin-right: 4px; }
+#toolbar-zoom { padding-right: 6px; border-right: 1px solid var(--apj-border-mid); margin-right: 4px; }
+#toolbar-actions { margin-left: auto; gap: 4px; }
+
+/* Boutons toolbar */
+#toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: var(--apj-fg);
-  border: 1px solid var(--apj-border);
-  border-radius: 3px;
-  padding: 3px 8px;
-  font-size: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--apj-radius);
+  padding: 4px 9px;
+  font-size: 12.5px;
+  font-family: inherit;
   cursor: pointer;
-  line-height: 1.4;
+  white-space: nowrap;
+  min-height: 30px;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-#toolbar button:hover:not(:disabled) { background: var(--apj-btn-hover); }
-#toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+#toolbar button:hover:not(:disabled) {
+  background: var(--apj-btn-hover);
+  border-color: var(--apj-border-mid);
+}
+#toolbar button:active:not(:disabled) { background: var(--apj-btn-active); }
+#toolbar button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-#page-input { width: 50px; text-align: center; cursor: text; }
-#page-total { opacity: 0.75; margin-left: 2px; }
+/* Bouton palette de commandes */
+#btn-cmd-palette {
+  font-size: 11.5px !important;
+  color: var(--apj-fg-2) !important;
+  border: 1px solid var(--apj-border-mid) !important;
+  padding: 3px 10px !important;
+  gap: 5px;
+}
+#btn-cmd-palette:hover:not(:disabled) {
+  color: var(--apj-accent) !important;
+  border-color: var(--apj-accent) !important;
+  background: var(--apj-active-bg) !important;
+}
 
-/* ---------- Barre de recherche (A3) ---------- */
+/* Sélects et input page */
+#zoom-select, #page-input {
+  background: var(--apj-bg);
+  color: var(--apj-fg);
+  border: 1px solid var(--apj-border-mid);
+  border-radius: var(--apj-radius);
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  height: 30px;
+}
+#zoom-select { cursor: pointer; }
+#zoom-select:hover, #page-input:hover { border-color: var(--apj-accent); }
+#page-input { width: 48px; text-align: center; cursor: text; }
+#page-total { color: var(--apj-fg-2); font-size: 12px; margin-left: 2px; }
+
+/* Boutons d'action (registre toolbar) — style outlined */
+#toolbar-actions button {
+  border: 1px solid var(--apj-border-mid) !important;
+  padding: 4px 11px !important;
+  font-size: 12.5px !important;
+  border-radius: var(--apj-radius) !important;
+}
+#toolbar-actions button:hover:not(:disabled) {
+  background: var(--apj-active-bg) !important;
+  border-color: var(--apj-accent) !important;
+  color: var(--apj-accent) !important;
+}
+
+/* ========== Barre de recherche ========== */
 #findbar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  background: var(--apj-toolbar-bg);
+  padding: 6px 12px;
+  background: var(--apj-canvas);
   border-bottom: 1px solid var(--apj-border);
+  flex-shrink: 0;
 }
 #find-input {
   flex: 0 0 240px;
-  padding: 3px 8px;
-  border: 1px solid var(--apj-border);
-  border-radius: 3px;
+  padding: 4px 10px;
+  border: 1px solid var(--apj-border-mid);
+  border-radius: var(--apj-radius);
   background: var(--apj-bg);
   color: var(--apj-fg);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+#find-input:focus {
+  border-color: var(--apj-accent);
+  box-shadow: 0 0 0 1px var(--apj-accent);
 }
 #findbar button {
   background: transparent;
   color: var(--apj-fg);
-  border: 1px solid var(--apj-border);
-  border-radius: 3px;
-  padding: 3px 8px;
+  border: 1px solid var(--apj-border-mid);
+  border-radius: var(--apj-radius);
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
   cursor: pointer;
+  height: 28px;
+  transition: background 0.1s;
 }
 #findbar button:hover { background: var(--apj-btn-hover); }
-#find-count { font-size: 11px; opacity: 0.8; min-width: 70px; }
+#find-count { font-size: 11px; color: var(--apj-fg-2); min-width: 70px; }
 #find-close { margin-left: auto; }
 
-/* ---------- Zone de rendu ---------- */
-/* #render-area est le contexte de positionnement : le conteneur du viewer
-   PDF.js DOIT être en position:absolute + overflow:auto (exigence du composant). */
+/* ========== Zone de rendu ========== */
 #render-area {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: var(--apj-bg);
+  background: var(--apj-render-bg);
 }
 
 #viewerContainer {
   position: absolute;
   inset: 0;
   overflow: auto;
+  background: var(--apj-render-bg);
 }
-/* Centrage des pages dans le conteneur large */
-#viewer.pdfViewer { padding: 12px 0; }
+#viewer.pdfViewer { padding: 16px 0; }
 
-/* ---------- Aperçu image (D1) ---------- */
+/* ========== Image (D1) ========== */
 #image-view {
   position: absolute;
   inset: 0;
@@ -213,34 +317,130 @@ html, body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 12px;
+  padding: 16px;
   box-sizing: border-box;
+  background: var(--apj-render-bg);
 }
 #image-el {
   max-width: 100%;
   height: auto;
   background: white;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.45);
   transition: transform 0.2s ease;
   transform-origin: center center;
 }
 
-/* ---------- États ---------- */
+/* ========== États (vide / chargement / erreur) ========== */
 #empty-state, #loading, #error {
   position: absolute;
   inset: 0;
   margin: auto;
   height: fit-content;
-  padding: 20px;
+  padding: 24px;
   text-align: center;
+  color: var(--apj-fg-2);
+  background: transparent;
 }
-#error { color: #c0392b; }
+#error { color: var(--apj-danger); }
 
-/* ---------- Impression (window.print) ---------- */
-/* Masquer tout le chrome de l'extension pour n'imprimer que le PDF. */
+/* ========== Palette de commandes (Ctrl+K) ========== */
+#cmd-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 72px;
+}
+#cmd-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+}
+#cmd-dialog {
+  position: relative;
+  width: 500px;
+  max-width: calc(100vw - 32px);
+  background: var(--apj-bg);
+  border-radius: 8px;
+  box-shadow: var(--apj-shadow-md), 0 0 0 1px var(--apj-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 100px);
+}
+#cmd-search-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--apj-border);
+  gap: 10px;
+  flex-shrink: 0;
+}
+#cmd-search-icon { font-size: 16px; color: var(--apj-fg-2); flex-shrink: 0; }
+#cmd-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--apj-fg);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+#cmd-input::placeholder { color: var(--apj-fg-2); }
+#cmd-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.cmd-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--apj-fg-2);
+  padding: 8px 10px 4px;
+  user-select: none;
+}
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--apj-radius);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--apj-fg);
+  text-align: left;
+  transition: background 0.08s, color 0.08s;
+}
+.cmd-item:hover, .cmd-item.active {
+  background: var(--apj-active-bg);
+  color: var(--apj-accent);
+}
+.cmd-item-icon  { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+.cmd-item-label { flex: 1; }
+.cmd-item-shortcut {
+  font-size: 10.5px;
+  color: var(--apj-fg-2);
+  background: var(--apj-canvas);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--apj-border-mid);
+  font-family: "Consolas", monospace;
+  white-space: nowrap;
+}
+
+/* ========== Impression ========== */
 @media print {
-  #pdf-list, #thumb-rail, #toolbar, #findbar { display: none !important; }
+  #pdf-list, #thumb-rail, #toolbar, #findbar, #cmd-palette { display: none !important; }
   #main { display: block !important; }
-  #render-area { position: static !important; overflow: visible !important; }
-  #viewerContainer { position: static !important; overflow: visible !important; }
+  #render-area, #viewerContainer { position: static !important; overflow: visible !important; background: white !important; }
 }

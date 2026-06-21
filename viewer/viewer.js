@@ -24,6 +24,7 @@ import "./toolbar/actions/download.js";
 import "./toolbar/actions/saveas.js";
 import "./toolbar/actions/open-external.js";
 import "./toolbar/actions/forward.js";
+import "./toolbar/actions/copy-text.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL("../vendor/pdfjs/build/pdf.worker.mjs", import.meta.url).href;
@@ -82,6 +83,12 @@ const el = {
   findNext: document.getElementById("find-next"),
   findCount: document.getElementById("find-count"),
   findClose: document.getElementById("find-close"),
+  // Palette de commandes
+  cmdPalette: document.getElementById("cmd-palette"),
+  cmdBackdrop: document.getElementById("cmd-backdrop"),
+  cmdInput: document.getElementById("cmd-input"),
+  cmdList: document.getElementById("cmd-list"),
+  btnCmdPalette: document.getElementById("btn-cmd-palette"),
 };
 
 function show(n) { if (n) n.hidden = false; }
@@ -420,21 +427,134 @@ function highlightThumb(pageNumber) {
   if (active && !el.thumbRail.hidden) active.scrollIntoView({ block: "nearest" });
 }
 
-// ---------- Toolbar (registre d'actions, contrat figé) ----------
-function refreshToolbar(item) {
-  const isPdf = item?.kind === "pdf";
-  const ctx = {
-    pdf: isPdf ? item : null,
-    item,
+// ---------- Contexte partagé toolbar + palette ----------
+function buildCtx(item) {
+  const it = item ?? (state.activeIndex >= 0 ? state.items[state.activeIndex] : null);
+  const isPdf = it?.kind === "pdf";
+  return {
+    pdf: isPdf ? it : null,
+    item: it,
     message: { id: state.messageId },
     meta: state.meta,
-    pdfName: item?.name,
+    pdfName: it?.name,
     pdfDoc: isPdf ? state.doc : null,
-    pdfCanvas: null, // plus de canvas unique en v0.3 (scroll continu)
+    pdfCanvas: null,
     viewer: pdfViewer,
   };
-  toolbar.render(el.actions, ctx);
 }
+
+function refreshToolbar(item) {
+  toolbar.render(el.actions, buildCtx(item));
+}
+
+// ---------- Palette de commandes (Ctrl+K) ----------
+const CMD_DEFS = [
+  { icon: "🔍", label: "Rechercher dans le PDF",  shortcut: "Ctrl+F", cat: "Navigation", available: () => !!state.doc, action: () => openFind() },
+  { icon: "⏮",  label: "Première page",           shortcut: "Home",   cat: "Navigation", available: () => !!state.doc, action: () => goPage(1) },
+  { icon: "⏭",  label: "Dernière page",            shortcut: "End",    cat: "Navigation", available: () => !!state.doc, action: () => goPage(pdfViewer.pagesCount) },
+  { icon: "◀",  label: "Page précédente",          shortcut: "←",      cat: "Navigation", available: () => !!state.doc, action: () => goPage(pdfViewer.currentPageNumber - 1) },
+  { icon: "▶",  label: "Page suivante",            shortcut: "→",      cat: "Navigation", available: () => !!state.doc, action: () => goPage(pdfViewer.currentPageNumber + 1) },
+  { icon: "🔎", label: "Zoom avant",               shortcut: "+",      cat: "Zoom",       available: () => !!state.doc, action: () => zoomBy(+1) },
+  { icon: "🔍", label: "Zoom arrière",             shortcut: "−",      cat: "Zoom",       available: () => !!state.doc, action: () => zoomBy(-1) },
+  { icon: "↔",  label: "Zoom : Largeur de page",                       cat: "Zoom",       available: () => !!state.doc, action: () => { pdfViewer.currentScaleValue = "page-width"; } },
+  { icon: "📐", label: "Zoom : Page entière",                          cat: "Zoom",       available: () => !!state.doc, action: () => { pdfViewer.currentScaleValue = "page-fit"; } },
+  { icon: "1",  label: "Zoom : 100 %",                                 cat: "Zoom",       available: () => !!state.doc, action: () => { pdfViewer.currentScaleValue = "1"; } },
+  { icon: "▦",  label: "Vignettes des pages",                          cat: "Affichage",  available: () => !!state.doc, action: () => el.btnThumbs.click() },
+  { icon: "⟳",  label: "Pivoter (sens horaire)",                       cat: "Affichage",  available: () => true,        action: () => el.btnRotate.click() },
+  { icon: "✕",  label: "Fermer la fenêtre",        shortcut: "Esc",    cat: "Fenêtre",    available: () => true,        action: () => window.close() },
+];
+
+let _cmdFiltered = [];
+let _cmdActiveIdx = -1;
+
+function openCmdPalette() {
+  el.cmdPalette.hidden = false;
+  el.cmdInput.value = "";
+  _renderCmdList("");
+  el.cmdInput.focus();
+}
+function closeCmdPalette() {
+  el.cmdPalette.hidden = true;
+}
+
+function _renderCmdList(q) {
+  const query = q.toLowerCase().trim();
+  const ctx = buildCtx();
+
+  // Commandes statiques + actions du registre toolbar
+  const allCmds = [...CMD_DEFS];
+  for (const action of toolbar.list()) {
+    try {
+      if (action.isAvailable(ctx)) {
+        allCmds.push({ icon: "⚡", label: action.label, cat: "Actions", available: () => true, action: () => action.handler(ctx) });
+      }
+    } catch (_) {}
+  }
+
+  _cmdFiltered = query
+    ? allCmds.filter((c) => c.available() && c.label.toLowerCase().includes(query))
+    : allCmds.filter((c) => c.available());
+  _cmdActiveIdx = _cmdFiltered.length > 0 ? 0 : -1;
+
+  el.cmdList.innerHTML = "";
+  if (_cmdFiltered.length === 0) {
+    el.cmdList.innerHTML = '<li style="padding:14px;text-align:center;color:var(--apj-fg-2);font-size:13px">Aucune commande trouvée</li>';
+    return;
+  }
+
+  let lastCat = null;
+  _cmdFiltered.forEach((cmd, i) => {
+    if (!query && cmd.cat !== lastCat) {
+      const hdr = document.createElement("li");
+      hdr.className = "cmd-section-header";
+      hdr.textContent = cmd.cat;
+      el.cmdList.appendChild(hdr);
+      lastCat = cmd.cat;
+    }
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cmd-item" + (i === _cmdActiveIdx ? " active" : "");
+    const icon = document.createElement("span"); icon.className = "cmd-item-icon"; icon.textContent = cmd.icon;
+    const label = document.createElement("span"); label.className = "cmd-item-label"; label.textContent = cmd.label;
+    btn.append(icon, label);
+    if (cmd.shortcut) {
+      const kbd = document.createElement("kbd"); kbd.className = "cmd-item-shortcut"; kbd.textContent = cmd.shortcut;
+      btn.appendChild(kbd);
+    }
+    btn.addEventListener("mouseenter", () => { _cmdActiveIdx = i; _refreshCmdActive(); });
+    btn.addEventListener("click", () => { closeCmdPalette(); setTimeout(() => { try { cmd.action(); } catch (_) {} }, 0); });
+    li.appendChild(btn);
+    el.cmdList.appendChild(li);
+  });
+}
+
+function _refreshCmdActive() {
+  el.cmdList.querySelectorAll(".cmd-item").forEach((b, i) => b.classList.toggle("active", i === _cmdActiveIdx));
+  const active = el.cmdList.querySelector(".cmd-item.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+el.cmdInput.addEventListener("input", () => _renderCmdList(el.cmdInput.value));
+el.cmdInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    _cmdActiveIdx = Math.min(_cmdActiveIdx + 1, _cmdFiltered.length - 1);
+    _refreshCmdActive();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    _cmdActiveIdx = Math.max(_cmdActiveIdx - 1, 0);
+    _refreshCmdActive();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    const cmd = _cmdFiltered[_cmdActiveIdx];
+    if (cmd) { closeCmdPalette(); setTimeout(() => { try { cmd.action(); } catch (_) {} }, 0); }
+  } else if (e.key === "Escape") {
+    e.preventDefault(); closeCmdPalette();
+  }
+});
+el.cmdBackdrop.addEventListener("click", () => closeCmdPalette());
+el.btnCmdPalette.addEventListener("click", () => el.cmdPalette.hidden ? openCmdPalette() : closeCmdPalette());
 
 // ---------- Navigation / zoom / rotation ----------
 function goPage(n) {
@@ -569,10 +689,14 @@ el.renderArea.addEventListener("wheel", (e) => {
 window.addEventListener("keydown", (e) => {
   const inField = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
 
+  if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+    e.preventDefault(); el.cmdPalette.hidden ? openCmdPalette() : closeCmdPalette(); return;
+  }
   if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
     e.preventDefault(); openFind(); return;
   }
   if (e.key === "Escape") {
+    if (!el.cmdPalette.hidden) { closeCmdPalette(); return; }
     if (!el.findbar.hidden) { closeFind(); return; }
     window.close(); return;
   }
