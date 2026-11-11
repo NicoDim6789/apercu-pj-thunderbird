@@ -12,13 +12,15 @@ Tu es à la fois **développeur senior** de l'application CCM et **ingénieur st
 expert en statique, résistance des matériaux (RdM), Eurocodes (EN 1990, EN 1991, EN 1995, EN 1998)
 et NF DTU de la charpente et de l'ossature bois.
 
-Je suis professionnel de la charpente / construction bois. Je suis une formation et j'utilise les
-logiciels **ACORD-Bat**, **SEMA** et **Cadwork**. Je veux comprendre ce que ces logiciels calculent, être
-capable de **vérifier leurs résultats à la main** et de **justifier mes choix** face à un bureau de contrôle.
+Le module s'adresse à **toute l'équipe du bureau** (charpente / construction bois) : chaque personne
+s'y forme à son rythme, avec **sa propre progression**. Nous utilisons les logiciels **ACORD-Bat**,
+**SEMA** et **Cadwork**. L'objectif est que chacun comprenne ce que ces logiciels calculent, soit
+capable de **vérifier leurs résultats à la main** et de **justifier ses choix** face à un bureau de contrôle.
 
 Crée dans l'application CCM un nouveau module nommé **« Cours »** : un parcours de formation
-progressif, rigoureux et à jour des normes, avec suivi de progression, fiches de calcul réutilisables,
-journal de questions et veille normative mensuelle.
+progressif, rigoureux et à jour des normes, **multi-utilisateur** (un profil nominatif par personne du
+bureau), avec suivi de progression individuel, vue d'équipe, fiches de calcul réutilisables, journal de
+questions et veille normative mensuelle partagée.
 
 ## ÉTAPE 0 — AVANT DE CODER (obligatoire)
 
@@ -29,7 +31,7 @@ journal de questions et veille normative mensuelle.
 3. Présente-moi un **plan court** (modèle de données, écrans, découpage en lots) et attends ma
    validation avant d'écrire le code.
 4. Développe en **lots livrables** :
-   - Lot 1 : squelette du module + modèle de données + tableau de bord + statuts.
+   - Lot 1 : squelette du module + profils apprenants (§ 1 bis) + modèle de données + tableau de bord + statuts.
    - Lot 2 : moteur de leçons + modules 0 à 4 rédigés intégralement.
    - Lot 3 : modules 5 à 10.
    - Lot 4 : modules 11 à 15 + fiches de calcul + journal de questions.
@@ -48,22 +50,53 @@ journal de questions et veille normative mensuelle.
 - **Recherche plein texte** sur leçons, fiches, formules, questions et références normatives.
 - **Contenu pédagogique séparé du code** (fichiers Markdown/MDX ou JSON, ou tables dédiées) pour que
   je puisse corriger ou compléter une leçon sans toucher aux composants.
-- **Export / import JSON** de toute ma progression + **export PDF/impression** d'une fiche ou d'une leçon.
+- **Export / import JSON** de la progression d'une personne + **export PDF/impression** d'une fiche ou d'une leçon.
 - Aucune intégration externe obligatoire : le module doit fonctionner seul. La veille automatisée
   (§ 7.4) est une **option** désactivable.
+
+## 1 bis. MULTI-UTILISATEUR : CHAQUE PERSONNE DU BUREAU SE FORME SOUS SON NOM
+
+- **Identification** :
+  - Si CCM a déjà une authentification / des comptes utilisateurs, **les réutiliser** : l'apprenant
+    est l'utilisateur connecté, aucun compte supplémentaire.
+  - Sinon, écran « **Qui se forme ?** » : choix de son nom dans la liste des profils du bureau ou
+    bouton « Ajouter mon nom » (prénom + nom, initiales/couleur d'avatar, poste facultatif). Le profil
+    choisi est mémorisé sur l'appareil ; bouton « Changer de profil » toujours accessible
+    (poste partagé au bureau).
+- **Ce qui est commun à tous** : contenu des modules et leçons, référentiel normatif, veille,
+  bibliothèque de fiches « modèles ».
+- **Ce qui est propre à chaque personne** : statuts des notions, révision espacée, scores et historique
+  des mini-évaluations, temps d'étude, notes personnelles, fiches de calcul remplies, brouillons.
+- **Ce qui est partagé avec attribution** : journal de questions aux formateurs (chaque question porte le
+  nom de son auteur, les autres peuvent faire « +1 / moi aussi » pour éviter les doublons et voir la
+  réponse) ; entrées de veille (qui l'a saisie, qui l'a validée).
+- **Rôles** (simples) : `apprenant` (par défaut) et `référent formation` (gère les profils, valide la
+  veille et les mises à jour de contenu, voit la vue d'équipe détaillée). Si CCM a déjà des rôles,
+  s'y raccorder.
+- **Vue d'équipe** (référent) : progression de chacun par module, notions « non maîtrisées » les plus
+  fréquentes dans l'équipe (pour cibler une session de formation), questions en attente par formateur.
+  Chaque apprenant voit sa propre progression en détail ; les autres ne voient que l'avancement global
+  par module (pas les scores détaillés).
+- **Données personnelles (RGPD)** : profils limités au strict nécessaire (nom, rôle), possibilité
+  d'exporter et de supprimer les données d'une personne ; suppression d'un profil = anonymisation de
+  ses questions partagées, pas de perte de la réponse pour l'équipe.
+- Si le stockage est une base partagée, **isoler les données par utilisateur** côté serveur
+  (ex. Row Level Security / filtres par `apprenant_id`), pas seulement côté interface.
 
 ## 2. MODÈLE DE DONNÉES (à adapter à la stack)
 
 | Entité | Champs principaux |
 |---|---|
+| `cours_apprenant` | id, nom affiché, initiales/couleur, rôle (apprenant / référent), user_id CCM si existant, date de création, actif |
 | `cours_module` | id, numéro, titre, objectifs, prérequis, durée estimée, ordre |
 | `cours_lecon` | id, module_id, titre, niveau (fondamental / intermédiaire / avancé / expert), durée, contenu, références normatives liées |
-| `cours_notion` | id, lecon_id, intitulé, **statut**, date_dernier_statut, date_prochaine_revision, note perso |
-| `cours_evaluation` | id, lecon_id, date, score, réponses, temps passé |
-| `cours_fiche` | id, titre, type d'élément, hypothèses, unités, formules, données saisies, résultats, contrôles, limites, références, version de norme |
-| `cours_question` | id, formateur (ACORD-Bat / SEMA / Cadwork / autre), lecon_id ou notion_id, question, contexte (capture/valeurs), priorité, **statut**, réponse, date |
+| `cours_notion` | id, lecon_id, intitulé (contenu commun) |
+| `cours_progression` | id, **apprenant_id**, notion_id, **statut**, date_dernier_statut, date_prochaine_revision, note perso |
+| `cours_evaluation` | id, **apprenant_id**, lecon_id, date, score, réponses, temps passé |
+| `cours_fiche` | id, **apprenant_id** (vide = fiche modèle commune), titre, type d'élément, hypothèses, unités, formules, données saisies, résultats, contrôles, limites, références, version de norme |
+| `cours_question` | id, **auteur_id**, liste des « moi aussi », formateur (ACORD-Bat / SEMA / Cadwork / autre), lecon_id ou notion_id, question, contexte (capture/valeurs), priorité, **statut**, réponse, date |
 | `cours_reference` | id, code (ex. « NF EN 1995-1-1 »), titre, version/date, statut (en vigueur / en révision / remplacée / retirée), date de dernière vérification, source |
-| `cours_veille` | id, date, source, référence concernée, résumé, impact (aucun / mineur / majeur), leçons impactées, **statut** |
+| `cours_veille` | id, date, **saisie_par**, **validée_par**, source, référence concernée, résumé, impact (aucun / mineur / majeur), leçons impactées, **statut** |
 
 **Statuts :**
 - Notion : `Non vue` → `En cours` → `À revoir` → `Acquise` → `Maîtrisée` (code couleur + icône, jamais
@@ -210,7 +243,7 @@ la vérification par un bureau d'études ».
 
 ## 6. TABLEAU DE BORD ET JOURNAL DE QUESTIONS
 
-**Tableau de bord** (page d'accueil du module) :
+**Tableau de bord personnel** (page d'accueil du module, au nom de la personne connectée) :
 - Progression globale et par module (barres + %).
 - Trois colonnes : **Acquises / À revoir / Non maîtrisées**, filtrables par module.
 - « À réviser aujourd'hui » (révision espacée) + « Reprendre là où je me suis arrêté ».
@@ -218,7 +251,7 @@ la vérification par un bureau d'études ».
 - Questions en attente par formateur, alertes de veille non traitées.
 
 **Journal de questions aux formateurs** :
-- Onglets **ACORD-Bat / SEMA / Cadwork / Autre**.
+- Onglets **ACORD-Bat / SEMA / Cadwork / Autre** ; filtres « mes questions » / « toute l'équipe ».
 - Création rapide depuis une leçon (la question est liée automatiquement à la notion).
 - Champ « contexte » (valeurs, paramètres du logiciel, capture), priorité, statut, réponse.
 - Vue « préparer ma prochaine session de formation » : export de la liste des questions « À poser »
@@ -245,7 +278,8 @@ vérification**. Une référence non vérifiée depuis plus de 30 jours est sign
 - Mises à jour / notes de version d'**ACORD-Bat, SEMA, Cadwork** (nouvelles normes intégrées).
 
 ### 7.3 Rituel mensuel (fonctionne sans aucune intégration)
-- Le 1er de chaque mois, badge « Veille à faire » sur le module.
+- Le 1er de chaque mois, badge « Veille à faire » sur le module (visible du référent formation ;
+  tout le monde peut proposer une entrée, le référent la valide).
 - Checklist guidée des sources à consulter (liens cliquables) : AFNOR / boutique et « Normes en
   ligne », CSTB (DTU, Avis techniques, Évaluations), enquêtes publiques AFNOR, CEN/TC 250/SC 5,
   FCBA, CODIFAB, Qualité Construction / AQC, Programme PACTE, Légifrance, éditeurs des logiciels.
@@ -258,7 +292,7 @@ vérification**. Une référence non vérifiée depuis plus de 30 jours est sign
 Si l'application dispose d'un mécanisme de tâches planifiées (cron, fonction planifiée, worker),
 proposer — **désactivé par défaut** — une tâche mensuelle qui interroge des sources publiques
 (flux RSS/pages d'actualité), compare avec le registre et crée des entrées « À analyser ». Aucune
-modification automatique du contenu des cours : **toute évolution est validée par moi**.
+modification automatique du contenu des cours : **toute évolution est validée par le référent formation**.
 
 ## 8. EXIGENCES DE QUALITÉ DU CONTENU
 
@@ -281,6 +315,9 @@ modification automatique du contenu des cours : **toute évolution est validée 
 - [ ] Au moins une fiche de calcul interactive testée par un cas de référence calculé à la main.
 - [ ] Tableau de bord, journal de questions, veille mensuelle opérationnels.
 - [ ] Export/import JSON de la progression.
+- [ ] Deux personnes du bureau ont chacune leur profil nominatif et leur progression indépendante ;
+      changer de profil sur un poste partagé ne mélange pas les données.
+- [ ] Vue d'équipe accessible au référent, données isolées par utilisateur côté stockage.
 - [ ] Tests unitaires sur les calculs (combinaisons, kmod, flambement, flèches, Johansen).
 
 Commence par l'**Étape 0** : analyse du dépôt, puis plan à valider.
